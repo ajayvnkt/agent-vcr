@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "scenario": "ticket_escalation_vip_customer",
+  "calls": [
+    { "name": "lookup_customer", "args": { "email": "vip@acme.com" } },
+    { "name": "get_ticket_history", "args": { "customerId": "cust_vip_001", "limit": 5 } },
+    { "name": "escalate_ticket", "args": { "ticketId": "tkt_999", "tier": "priority", "assignTo": "senior-support", "reason": "VIP customer with 3+ unresolved issues" } },
+    { "name": "send_notification", "args": { "customerId": "cust_vip_001", "channel": "email", "templateId": "escalation-confirmed" } }
+  ]
+}
