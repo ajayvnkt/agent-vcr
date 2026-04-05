@@ -23,8 +23,8 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
-      - run: npm test
       - run: npm run build
+      - run: npm test
 
       # Validate all golden traces
       - name: Validate golden traces
