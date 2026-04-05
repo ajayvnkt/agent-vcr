@@ -1,0 +1,41 @@
+# Publishes to npm when you push a tag like v0.2.1 (after bumping package.json).
+# Repo secret: NPM_TOKEN — create an "Automation" token at https://www.npmjs.com/settings/~/tokens
+
+name: Publish npm
+
+on:
+  push:
+    tags:
+      - 'v*' # e.g. v0.2.1 — must match package.json version (checked in workflow)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG must match package.json version $PKG"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

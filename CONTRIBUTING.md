@@ -35,6 +35,20 @@ npm run example:minimal   # Requires dist/ (run build first)
 - Prefer **small modules** with a short `@fileoverview` at the top (see `src/`).
 - No network or API keys in unit tests.
 
+## Releases / npm
+
+Publishing is automated when you push a **version tag** that matches `package.json`:
+
+1. Bump `"version"` on `main` and commit (e.g. `chore: release v0.2.2`).
+2. Tag: `git tag v0.2.2` (must match the version string exactly, with `v` prefix).
+3. `git push origin main --tags`
+
+The workflow [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml) runs `lint`, `test`, and `npm publish`.
+
+**One-time setup:** In the GitHub repo, add a secret **`NPM_TOKEN`** (Settings → Secrets and variables → Actions). Create an **Automation** classic token at [npmjs.com → Access Tokens](https://www.npmjs.com/settings/~/tokens) with **Publish** permission for `agent-vcr`.
+
+To publish from your machine instead: `npm login` then `npm publish`.
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md) for reporting vulnerabilities.
