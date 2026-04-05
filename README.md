@@ -61,9 +61,24 @@ With Agent VCR:        prompt change → CI fails → you fix it before merging
 
 ## Install
 
+Install the package via your preferred package manager:
+
 ```bash
 npm install agent-vcr
-# pnpm add agent-vcr  /  yarn add agent-vcr
+# or
+pnpm add agent-vcr
+# or
+yarn add agent-vcr
+```
+
+Then, you can access the library in your code (supports both ESM and CommonJS):
+
+```typescript
+// ESM / TypeScript
+import { ScriptedLlm, collectToolCalls } from 'agent-vcr'
+
+// CommonJS
+const { ScriptedLlm, collectToolCalls } = require('agent-vcr')
 ```
 
 **Scaffold a new project in one command:**
