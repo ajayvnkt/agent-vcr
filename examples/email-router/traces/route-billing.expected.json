@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "scenario": "email_route_billing_inquiry",
+  "calls": [
+    { "name": "classify_email", "args": { "subject": "Invoice #4821 looks wrong", "body": "Hi, I was charged twice for my subscription this month." } },
+    { "name": "route_to_department", "args": { "department": "billing", "priority": "high", "ticketId": "generated" } }
+  ]
+}

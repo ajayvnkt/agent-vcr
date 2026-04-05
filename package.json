@@ -1,0 +1,121 @@
+{
+  "name": "agent-vcr",
+  "version": "0.3.1",
+  "description": "Snapshot tests for LLM tool calls — record once, replay deterministically in CI. Catch regressions in your agent wiring before they hit production.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "agent-vcr": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./adapters/openai": {
+      "types": "./dist/adapters/openai.d.ts",
+      "import": "./dist/adapters/openai.js"
+    },
+    "./adapters/anthropic": {
+      "types": "./dist/adapters/anthropic.d.ts",
+      "import": "./dist/adapters/anthropic.js"
+    },
+    "./adapters/vercel-ai": {
+      "types": "./dist/adapters/vercel-ai.d.ts",
+      "import": "./dist/adapters/vercel-ai.js"
+    },
+    "./adapters/langchain": {
+      "types": "./dist/adapters/langchain.d.ts",
+      "import": "./dist/adapters/langchain.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "example:minimal": "node examples/minimal/run.mjs",
+    "example:email-router": "node examples/email-router/run.mjs",
+    "example:financial-transfer": "node examples/financial-transfer/run.mjs",
+    "example:rag-validation": "node examples/rag-validation/run.mjs",
+    "example:ticket-escalation": "node examples/ticket-escalation/run.mjs",
+    "example:all": "npm run example:minimal && npm run example:email-router && npm run example:financial-transfer && npm run example:rag-validation && npm run example:ticket-escalation",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "llm",
+    "agent",
+    "testing",
+    "ci",
+    "vcr",
+    "tool-calling",
+    "tool-call",
+    "snapshot-testing",
+    "contract-testing",
+    "regression-testing",
+    "mock",
+    "vitest",
+    "jest",
+    "github-actions",
+    "openai",
+    "anthropic",
+    "langchain",
+    "vercel-ai",
+    "deterministic",
+    "agent-testing",
+    "ai-testing"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajayvnkt/agent-vcr.git"
+  },
+  "homepage": "https://github.com/ajayvnkt/agent-vcr#readme",
+  "bugs": {
+    "url": "https://github.com/ajayvnkt/agent-vcr/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.20.0",
+    "@langchain/core": ">=0.2.0",
+    "ai": ">=3.0.0",
+    "openai": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "@langchain/core": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
+  }
+}

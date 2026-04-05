@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "scenario": "rag_answer_with_source_citation",
+  "calls": [
+    { "name": "search_knowledge_base", "args": { "query": "refund policy for digital products", "topK": 3 } },
+    { "name": "rerank_results", "args": { "query": "refund policy for digital products", "resultIds": ["doc_1", "doc_2", "doc_3"] } },
+    { "name": "cite_sources", "args": { "sourceIds": ["doc_1", "doc_2"], "answer": "Digital products are refundable within 14 days of purchase." } }
+  ]
+}

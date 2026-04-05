@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "scenario": "refund_happy_path",
+  "calls": [
+    { "name": "lookup_order", "args": { "orderId": "123" } },
+    { "name": "refund_order", "args": { "orderId": "123", "amount": 10 } }
+  ]
+}

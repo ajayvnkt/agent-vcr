@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "scenario": "financial_transfer_within_limit",
+  "calls": [
+    { "name": "get_account_balance", "args": { "accountId": "acc_123" } },
+    { "name": "check_transfer_limit", "args": { "accountId": "acc_123", "amountCents": 50000 } },
+    { "name": "execute_transfer", "args": { "fromAccountId": "acc_123", "toAccountId": "acc_456", "amountCents": 50000, "memo": "Rent payment" } }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "version": 1,
+  "calls": [{ "name": "wrong_tool", "args": {} }]
+}
