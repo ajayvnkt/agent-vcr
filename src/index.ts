@@ -22,8 +22,43 @@ export { compareTraces } from './diff.js'
 export { stableStringify, callsEqual } from './normalize.js'
 
 // ── Schema + IO ───────────────────────────────────────────────────────────────
-export { parseTraceFileV1, safeParseTraceFileV1, traceFileV1Schema } from './schema.js'
-export type { ParsedTraceFileV1 } from './schema.js'
+export {
+  parseTraceFileV1,
+  safeParseTraceFileV1,
+  traceFileV1Schema,
+  parseTraceFile,
+  traceFileV2Schema,
+  traceFileSchema,
+} from './schema.js'
+export type { ParsedTraceFileV1, ParsedTraceFileV2 } from './schema.js'
+
+// ── Compaction: cuts as first-class trace events ──────────────────────────────
+export {
+  collectWithCompaction,
+  compactAtTokenBudget,
+  estimateTokensByChars,
+  tailFromRecentAssistantTurns,
+} from './compaction.js'
+export type {
+  CollectWithCompactionOptions,
+  CompactedRun,
+  CompactionContext,
+  CompactionEvent,
+  CompactionPolicy,
+} from './compaction.js'
+
+// ── Stability: variance across runs, attributed to cuts ───────────────────────
+export { analyzeStability, describeStability, firstDivergence } from './stability.js'
+export type {
+  RunDivergence,
+  RunVerdict,
+  StabilityOptions,
+  StabilityReport,
+} from './stability.js'
+
+// ── Ablation: which summary facts are load-bearing ────────────────────────────
+export { ablateSummary, describeAblation, splitByLines } from './ablation.js'
+export type { AblationOptions, AblationReport, FactVerdict } from './ablation.js'
 export { loadTraceFile, saveTraceFile } from './trace-io.js'
 
 // ── Scripted LLM + tool loop ──────────────────────────────────────────────────

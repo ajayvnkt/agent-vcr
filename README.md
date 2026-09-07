@@ -290,6 +290,7 @@ npm run build && npm run example:all
 | [financial-transfer](examples/financial-transfer/) | Balance → limit → transfer | High-stakes sequencing + regression demo |
 | [rag-validation](examples/rag-validation/) | Search → rerank → cite | `subsequence` mode for flexible pipelines |
 | [ticket-escalation](examples/ticket-escalation/) | VIP customer 4-step escalation | Long tool chains |
+| [compaction-stability](examples/compaction-stability/) | Support agent that outgrows its context | Run-to-run variance + summary ablation |
 
 **Run individually:**
 
@@ -298,7 +299,108 @@ npm run example:email-router
 npm run example:financial-transfer   # includes intentional regression demo
 npm run example:rag-validation
 npm run example:ticket-escalation
+npm run example:compaction-stability # no API key needed
 ```
+
+---
+
+## Long-Horizon Mode: Compaction, Stability, Ablation
+
+An agent that runs long enough will summarize its own history and continue. That
+summary is not preprocessing — it is **an action taken by the policy**, and it is
+the only action whose effect is to rewrite the agent's own observations. Nearly
+every long-horizon failure that shows up as "it worked yesterday" starts there.
+
+Agent VCR treats a compaction as a first-class trace event, which makes two things
+measurable that a pass rate cannot show you.
+
+### 1. Stability — the variance a mean hides
+
+Compaction barely moves the average. It blows up the **variance**, and the shape is
+bimodal: a run either holds together or derails. A 66% pass rate can mean "reliably
+mediocre" or "excellent two runs in three, catastrophic on the third" — and only the
+second one pages you at 2am.
+
+```typescript
+import { collectWithCompaction, compactAtTokenBudget, analyzeStability } from 'agent-vcr'
+
+const runs = []
+for (let i = 0; i < 12; i++) {
+  runs.push(await collectWithCompaction({
+    system: 'You are a support agent. Verify the order before refunding.',
+    user: 'Refund the customer for their damaged item.',
+    llm, executeTool,
+    compaction: {
+      shouldCompact: compactAtTokenBudget(60_000),
+      summarize: async (messages) => summarizeWithModel(messages),
+      keepRecentTurns: 2,
+    },
+  }))
+}
+
+const report = analyzeStability(runs, { attributionWindow: 3 })
+console.log(report.verdict)   // 'stable' | 'drifting' | 'bimodal'
+console.log(report.summary)
+```
+
+```
+verdict                 bimodal
+distinct traces         3
+modal share             42%
+attributable to a cut   100% of diverging runs
+first-divergence calls  {"3":7}
+```
+
+Runs are compared to their **mode**, not to a golden trace, because this measures
+self-consistency — a separate question from correctness. An agent can be perfectly
+consistent and consistently wrong.
+
+### 2. Ablation — which facts the summary must keep
+
+The open question in long-horizon agents is what a summary has to preserve, and it
+cannot be answered by reading the summary: faithful and useful are different
+properties, and usefulness is only visible in what the agent does afterwards.
+
+Because replay is deterministic, you can answer it causally. Hold the trajectory
+fixed, remove one fact from the summary, resume from the cut, and diff the calls
+that follow. Whatever changes behaviour is load-bearing; the rest is prose.
+
+```typescript
+import { ablateSummary } from 'agent-vcr'
+
+const cut = baselineRun.compactions[0]
+
+const ablation = await ablateSummary({
+  baseline: baselineRun.calls.slice(cut.atCall),
+  summary: cut.summary,
+  replay: (mutatedSummary) => replayTailWith(mutatedSummary),
+})
+
+console.log(ablation.compactionSchema)
+```
+
+```
+droppable     customer u-22 opened ticket T-9 asking for a refund
+LOAD-BEARING  the order in question is 4471
+droppable     refund policy allows refunds within 30 days
+droppable     customer has 3 prior orders, no prior refunds
+droppable     customer was polite throughout
+
+1 of 5 facts are load-bearing (20% signal).
+```
+
+Cost is `facts × repeats` replays **of the tail only** — everything before the cut
+comes from the recording.
+
+The output is a contract. Commit `compactionSchema` next to the golden trace and CI
+fails when a prompt change, a model swap, or a tighter token budget produces a summary
+that drops one of those facts — before the trajectory derails in production.
+
+> **Note on scope:** ablation finds the facts that matter *for this scenario*, which
+> is a hand-writable compaction schema, not a general policy. Training a compactor
+> with RL generalizes across tasks; this does not. It costs a handful of replays
+> instead of thousands of runs and a GPU, and for most production agents that trade
+> is the right one.
 
 ---
 
