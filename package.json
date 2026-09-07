@@ -44,7 +44,10 @@
     "example:compaction-stability": "node examples/compaction-stability/run.mjs",
     "example:all": "npm run example:minimal && npm run example:email-router && npm run example:financial-transfer && npm run example:rag-validation && npm run example:ticket-escalation && npm run example:compaction-stability && npm run example:reliability-suite",
     "prepublishOnly": "npm run build",
-    "example:reliability-suite": "node examples/reliability-suite/run.mjs"
+    "example:reliability-suite": "node examples/reliability-suite/run.mjs",
+    "live:policy": "node scripts/live/policy-check.mjs",
+    "live:ablation": "node scripts/live/ablation.mjs",
+    "live:goal-drift": "node scripts/live/goal-drift.mjs"
   },
   "keywords": [
     "llm",
