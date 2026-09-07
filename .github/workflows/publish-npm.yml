@@ -30,10 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # NOTE: deliberately no `registry-url`. Setting it makes setup-node write an
+      # .npmrc containing `_authToken=${NODE_AUTH_TOKEN}`. With trusted publishing
+      # there is no token, so npm authenticates with an empty placeholder and the
+      # registry answers 404 — which reads like a missing package rather than the
+      # auth problem it is. Omitting it lets npm fall through to OIDC.
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
           cache: npm
           cache-dependency-path: package-lock.json
 
