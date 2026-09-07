@@ -1,12 +1,24 @@
-# Publishes to npm when you push a tag like v0.2.1 (after bumping package.json).
-# Repo secret: NPM_TOKEN — create an "Automation" token at https://www.npmjs.com/settings/~/tokens
+# Publishes to npm when you push a tag like v0.4.0 (after bumping package.json).
+#
+# Authentication is npm Trusted Publishing (OIDC) — there is no NPM_TOKEN.
+# GitHub Actions proves its identity to npm directly, so nothing secret is
+# stored in this repo, nothing expires, and there is no 2FA prompt to answer.
+#
+# One-time setup on npmjs.com:
+#   npmjs.com/package/agent-vcr → Settings → Trusted Publisher → GitHub Actions
+#     Organization or user: ajayvnkt
+#     Repository:           agent-vcr
+#     Workflow filename:    publish-npm.yml
+#     Environment:          (leave blank)
+#
+# Requirements (both satisfied below): npm CLI >= 11.5.1, Node >= 22.14.0.
 
 name: Publish npm
 
 on:
   push:
     tags:
-      - 'v*' # e.g. v0.2.1 — must match package.json version (checked in workflow)
+      - 'v*' # e.g. v0.4.0 — must match package.json version (checked below)
   workflow_dispatch: # Actions → Publish npm → Run workflow (publishes package.json version on chosen branch)
 
 jobs:
@@ -14,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write # required: lets the runner mint the OIDC token npm verifies
     steps:
       - uses: actions/checkout@v5
 
@@ -23,6 +36,13 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: npm
           cache-dependency-path: package-lock.json
+
+      # Node 22 ships npm 10.x; trusted publishing needs 11.5.1 or later.
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@latest
+          npm --version
+          node --version
 
       - name: Verify tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/')
@@ -39,6 +59,5 @@ jobs:
       - run: npm run build
       - run: npm test
 
+      # No NODE_AUTH_TOKEN: the OIDC identity above is the credential.
       - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
