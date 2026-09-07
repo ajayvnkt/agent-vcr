@@ -1,7 +1,7 @@
 {
   "name": "agent-vcr",
-  "version": "0.3.1",
-  "description": "Snapshot tests for LLM tool calls — record once, replay deterministically in CI. Catch regressions in your agent wiring before they hit production.",
+  "version": "0.4.0",
+  "description": "Reliability testing for AI agents in TypeScript — golden tool-call traces, policy assertions, multi-turn scenarios, run-to-run variance, and long-horizon context-compaction contracts.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,8 +42,12 @@
     "example:rag-validation": "node examples/rag-validation/run.mjs",
     "example:ticket-escalation": "node examples/ticket-escalation/run.mjs",
     "example:compaction-stability": "node examples/compaction-stability/run.mjs",
-    "example:all": "npm run example:minimal && npm run example:email-router && npm run example:financial-transfer && npm run example:rag-validation && npm run example:ticket-escalation && npm run example:compaction-stability",
-    "prepublishOnly": "npm run build"
+    "example:all": "npm run example:minimal && npm run example:email-router && npm run example:financial-transfer && npm run example:rag-validation && npm run example:ticket-escalation && npm run example:compaction-stability && npm run example:reliability-suite",
+    "prepublishOnly": "npm run build",
+    "example:reliability-suite": "node examples/reliability-suite/run.mjs",
+    "live:policy": "node scripts/live/policy-check.mjs",
+    "live:ablation": "node scripts/live/ablation.mjs",
+    "live:goal-drift": "node scripts/live/goal-drift.mjs"
   },
   "keywords": [
     "llm",
@@ -66,7 +70,14 @@
     "vercel-ai",
     "deterministic",
     "agent-testing",
-    "ai-testing"
+    "ai-testing",
+    "agent-reliability",
+    "llm-evaluation",
+    "multi-turn",
+    "context-compaction",
+    "long-horizon",
+    "flaky-tests",
+    "typescript"
   ],
   "license": "MIT",
   "publishConfig": {
