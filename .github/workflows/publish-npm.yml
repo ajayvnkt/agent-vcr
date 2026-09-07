@@ -41,10 +41,11 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # Node 22 ships npm 10.x; trusted publishing needs 11.5.1 or later.
+      # Node 22 ships npm 10.x; trusted publishing needs >= 11.5.1. Pinned to the 11.x
+      # line rather than @latest: npm 12 is days old and OIDC publish regressed there.
       - name: Ensure npm supports trusted publishing
         run: |
-          npm install -g npm@latest
+          npm install -g "npm@^11.5.1"
           npm --version
           node --version
 
