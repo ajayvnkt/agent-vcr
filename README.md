@@ -291,6 +291,7 @@ npm run build && npm run example:all
 | [rag-validation](examples/rag-validation/) | Search → rerank → cite | `subsequence` mode for flexible pipelines |
 | [ticket-escalation](examples/ticket-escalation/) | VIP customer 4-step escalation | Long tool chains |
 | [compaction-stability](examples/compaction-stability/) | Support agent that outgrows its context | Run-to-run variance + summary ablation |
+| [reliability-suite](examples/reliability-suite/) | Four agents, four failure shapes | Policy assertions, variants, multi-turn, gated judge |
 
 **Run individually:**
 
@@ -300,7 +301,95 @@ npm run example:financial-transfer   # includes intentional regression demo
 npm run example:rag-validation
 npm run example:ticket-escalation
 npm run example:compaction-stability # no API key needed
+npm run example:reliability-suite    # no API key needed
 ```
+
+---
+
+## Reliability Suite
+
+A golden trace answers one question — *is this byte-identical to last time?* — and answers it too strictly. Agents legitimately reorder independent calls, retry, or hit a cache. Pin the whole sequence and every harmless variation fails the build; loosen the comparison until it stops complaining and it stops catching regressions too.
+
+What teams actually want to enforce is narrower and stronger. Four things, in ascending cost.
+
+### Tier 1 — policy, not sequences
+
+```typescript
+import { assertTrace } from 'agent-vcr'
+
+const failures = assertTrace(calls, {
+  // Never refund without verifying first. This is the rule, not a trace.
+  requires: [['refund_order', 'verify_order']],
+  forbid: ['delete_account'],
+  sequence: ['lookup_order', 'refund_order'],   // order, gaps allowed
+  includes: [{ name: 'refund_order', args: { amount: { oneOf: [10, 40] } } }],
+  maxCallsPerTool: 2,                            // catches retry storms
+})
+```
+
+`requires` and `ordering` look similar and are not. `ordering: [['verify', 'refund']]` says nothing at all when `verify` is absent — so an agent that refunds *without ever verifying* passes. `requires: [['refund', 'verify']]` fails it. The second one is the actual policy.
+
+Every failure is returned, not just the first: one CI run should tell you everything that's wrong, not make you fix and re-push six times.
+
+### Tier 2 — more than one correct path
+
+```typescript
+import { matchVariants, proposeVariants } from 'agent-vcr'
+
+const match = matchVariants(calls, [
+  { name: 'cache-hit',  calls: [lookup, reply] },
+  { name: 'cache-miss', calls: [lookup, fetch, reply] },
+])
+// → no accepted path matched (tried "cache-hit", "cache-miss").
+//   Closest was "cache-miss", which diverged at call 2: call 2 differs
+```
+
+Each path stays exact; the set simply accepts more than one. `proposeVariants(runs)` ranks the shapes you actually observed so you can approve them deliberately — approval is always an explicit call, because a suite that widens its own definition of correct whenever it fails is not testing anything.
+
+### Tier 3 — multi-turn scenarios
+
+Most orchestration bugs live in conversations, not single prompts: the agent that acts before it clarifies, or re-asks for something it already has.
+
+```typescript
+import { runSuite, formatMarkdown, keywordJudge } from 'agent-vcr'
+
+const scenarios = [{
+  name: 'refund/clarify-first',
+  agent: () => myAgent(),               // you bring the framework
+  turns: [
+    { user: 'I want a refund',  expect: { forbid: ['refund_order'] } },
+    { user: 'Order 123 please', expect: { includes: ['refund_order'] } },
+  ],
+  expectOverall: { requires: [['refund_order', 'verify_order']] },
+}]
+
+const result = await runSuite(scenarios, {
+  runs: 6,
+  gate: { minPassRate: 1, requireStable: true },
+})
+```
+
+The agent is injected. agent-vcr doesn't want to own your framework — you bring something that answers a user message, it brings the discipline.
+
+### Tier 4 — the judge, gated
+
+The four tiers differ in cost by three orders of magnitude: structural (free), assertions (free), text checks (free), LLM judge (~$0.01/test). So the judge is **only asked about runs that already passed everything free**. A run that called `refund_order` before `verify_order` is broken; paying a model to grade its prose tells you nothing and bills you on every commit.
+
+With no judge configured the suite is fully deterministic and free — that's what runs on every push. `keywordJudge()` grades `expect:` clauses with no model at all, so a suite written against the judge interface still runs on a plane.
+
+### The gate that catches what a pass rate can't
+
+```
+✗ refund/policy  0/1 runs
+    turn 1: "refund_order" at index 1 requires a prior "verify_order", which was never called
+✓ lookup/either-path  6/6 runs  [stable, modal 100%]
+✗ policy-qa/reliability  6/6 runs  [bimodal, modal 67%]
+    gate: behaviour is bimodal across 6 runs (3 distinct traces)
+```
+
+Read the last line again: **6 out of 6 runs passed, and the gate failed it.** Every run reached the right answer by a different route. A pass rate reports that identically to a genuinely reliable agent, and it is one prompt tweak from an incident.
+
+`requireStable` is the knob no other harness gives you. `formatMarkdown()` renders the whole thing as a PR comment with collapsible detail; `formatJson()` for dashboards.
 
 ---
 

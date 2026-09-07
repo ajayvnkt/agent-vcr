@@ -59,6 +59,54 @@ export type {
 // ── Ablation: which summary facts are load-bearing ────────────────────────────
 export { ablateSummary, describeAblation, splitByLines } from './ablation.js'
 export type { AblationOptions, AblationReport, FactVerdict } from './ablation.js'
+
+// ── Assertions: free, deterministic policy checks ─────────────────────────────
+export { assertTrace, callMatches, checkArg, traceSatisfies } from './assert.js'
+export type {
+  ArgMatcher,
+  AssertionFailure,
+  AssertionFailureKind,
+  ToolExpectation,
+  ToolPattern,
+  TraceAssertion,
+} from './assert.js'
+
+// ── Variants: more than one correct path ──────────────────────────────────────
+export { addVariant, matchVariants, proposeVariants } from './variants.js'
+export type { Variant, VariantFileV1, VariantMatch } from './variants.js'
+
+// ── Summary contracts: the compaction schema, enforced ────────────────────────
+export { contractFromAblation, verifyRunContract, verifySummary } from './contract.js'
+export type {
+  ContractFact,
+  ContractResult,
+  ContractViolation,
+  SummaryContract,
+} from './contract.js'
+
+// ── Judge: the optional paid tier ─────────────────────────────────────────────
+export { assertOutput, keywordJudge, llmJudge } from './judge.js'
+export type { Judge, JudgeInput, JudgeVerdict, OutputAssertion } from './judge.js'
+
+// ── Scenarios: multi-turn tests ───────────────────────────────────────────────
+export { runScenario, runScenarioRepeated } from './scenario.js'
+export type {
+  RepeatedScenarioResult,
+  RunScenarioOptions,
+  Scenario,
+  ScenarioAgent,
+  ScenarioAgentFactory,
+  ScenarioRunResult,
+  Tier,
+  Turn,
+  TurnOutcome,
+  TurnResult,
+} from './scenario.js'
+
+// ── Suite + reporters ─────────────────────────────────────────────────────────
+export { runSuite } from './suite.js'
+export type { SuiteGate, SuiteResult, SuiteScenarioOutcome } from './suite.js'
+export { formatConsole, formatJson, formatMarkdown, runFailures } from './report.js'
 export { loadTraceFile, saveTraceFile } from './trace-io.js'
 
 // ── Scripted LLM + tool loop ──────────────────────────────────────────────────
