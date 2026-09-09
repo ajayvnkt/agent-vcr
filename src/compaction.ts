@@ -28,6 +28,9 @@ export type CompactionEvent = {
   /** Rough context size before/after, in the estimator's units. */
   tokensBefore: number
   tokensAfter: number
+  /** Opt-in literal effective context, including retained messages. */
+  effectiveBefore?: string
+  effectiveAfter?: string
 }
 
 export type CompactedRun = {
@@ -64,9 +67,16 @@ export type CollectWithCompactionOptions = {
   executeTool: ToolExecutorFn
   maxSteps?: number
   compaction: CompactionPolicy
+  /** Capture full local context for evidence assertions. May contain sensitive data. */
+  captureEvidence?: boolean
 }
 
 const DEFAULT_KEEP_RECENT_TURNS = 2
+
+function effectiveText(messages: ChatMessage[]): string {
+  return messages.map(m => [m.content ?? '', ...('tool_calls' in m
+    ? (m.tool_calls ?? []).map(c => `${c.function.name}\n${c.function.arguments}`) : [])].join('\n')).join('\n')
+}
 
 function defaultResume(summary: string): string {
   return [
@@ -156,6 +166,7 @@ export async function collectWithCompaction(
 
     const approxTokens = estimate(messages)
     if (policy.shouldCompact({ messages, step: steps, approxTokens })) {
+      const before = options.captureEvidence ? effectiveText(messages) : undefined
       const summary = await policy.summarize(messages)
       const tail = tailFromRecentAssistantTurns(messages, keepRecent)
       const rebuilt: ChatMessage[] = []
@@ -171,6 +182,8 @@ export async function collectWithCompaction(
         keptRecentTurns: tail.filter((m) => m.role === 'assistant').length,
         tokensBefore: approxTokens,
         tokensAfter: estimate(rebuilt),
+        ...(options.captureEvidence ? { effectiveBefore: before,
+          effectiveAfter: effectiveText(rebuilt) } : {}),
       })
 
       messages = rebuilt

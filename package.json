@@ -9,6 +9,10 @@
     "agent-vcr": "dist/cli.js"
   },
   "exports": {
+    "./promptfoo": {
+      "types": "./dist/promptfoo.d.ts",
+      "import": "./dist/promptfoo.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"

@@ -1,5 +1,11 @@
 # Agent VCR
 
+**Evidence integrity inside your existing evaluator.** The local build now includes a
+[Promptfoo JavaScript assertion adapter](docs/promptfoo.md) for argument provenance and
+information survival across context transformations. Missing or unexercised evidence cannot
+pass. The compaction collector can capture complete before/after context explicitly.
+This adapter is unreleased; use the documented local-build path.
+
 <p align="center">
   <strong>Snapshot tests for LLM tool calls.<br>Record once. Catch regressions forever. Zero live-LLM cost in CI once golden traces are committed.</strong>
 </p>
