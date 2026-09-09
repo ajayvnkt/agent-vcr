@@ -129,6 +129,8 @@ export type { InitOptions, InitResult } from './init.js'
 
 export { assertGrounding, assertTransformationSurvival } from './evidence.js'
 export { counterfactualReplay } from './counterfactual.js'
+export { diffContext } from './context-diff.js'
+export type { ContextComponents, ContextTokenizer, ComponentDelta, ContextDiff } from './context-diff.js'
 export type { CounterfactualOptions, CounterfactualResult, RecordedToolReturn } from './counterfactual.js'
 export type { GroundingSource, GroundingCitation, GroundingRule, EvidenceFailure,
   TransformationEvent, SurvivalRule } from './evidence.js'
