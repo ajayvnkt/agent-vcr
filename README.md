@@ -1,5 +1,9 @@
 # Agent VCR
 
+The additive [generic assurance APIs](docs/generic-assurance.md) include strict counterfactual
+tool-return replay and token-attributed context diffs. Divergent tool paths remain INCONCLUSIVE;
+token deltas are measurements, not cost-saving claims. Existing APIs remain unchanged.
+
 **Evidence integrity inside your existing evaluator.** The local build now includes a
 [Promptfoo JavaScript assertion adapter](docs/promptfoo.md) for argument provenance and
 information survival across context transformations. Missing or unexercised evidence cannot

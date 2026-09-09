@@ -81,4 +81,21 @@ describe('counterfactual replay never fabricates tool returns', () => {
     expect(result.messages[0]!.content).toBe('original')
     expect(result.status).toBe('COMPLETE')
   })
+
+  it('stops after a valid prefix when a later request diverges, and enforces the step cap', async () => {
+    let step = 0
+    const result = await counterfactualReplay({ prompt: 'changed', recording, model: {
+      complete: async () => ++step === 1
+        ? assistantWithTools([toolCall('read', recording[0]!.args, 'first')])
+        : assistantWithTools([toolCall('write', { id: 'x', value: 99 }, 'second')]),
+    } })
+    expect(result.status).toBe('INCONCLUSIVE')
+    expect(result.consumed).toBe(1)
+    expect(result.modelCalls).toBe(2)
+    expect(result.messages.filter(m => m.role === 'tool').length).toBe(1)
+    const capped = await counterfactualReplay({ prompt: 'changed', recording, maxSteps: 1,
+      model: { complete: async () => assistantWithTools([toolCall('read', recording[0]!.args)]) } })
+    expect(capped.status).toBe('INCONCLUSIVE')
+    expect(capped.reason).toContain('step limit')
+  })
 })
