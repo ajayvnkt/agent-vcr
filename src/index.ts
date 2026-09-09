@@ -126,3 +126,7 @@ export type { RecordConfig, RecordConfigFile, ToolDefinition } from './record.js
 // ── Project scaffolding ───────────────────────────────────────────────────────
 export { initProject } from './init.js'
 export type { InitOptions, InitResult } from './init.js'
+
+export { assertGrounding, assertTransformationSurvival } from './evidence.js'
+export type { GroundingSource, GroundingCitation, GroundingRule, EvidenceFailure,
+  TransformationEvent, SurvivalRule } from './evidence.js'

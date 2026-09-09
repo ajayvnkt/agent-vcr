@@ -766,3 +766,40 @@ Please run `npm run lint && npm test` before submitting. See [CONTRIBUTING.md](C
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+## Evidence integrity
+
+A trace can have the expected tool order and still use an invented argument or lose a fact
+during sanitization. `assertGrounding` and `assertTransformationSurvival` check the evidence
+behind the trace. They also integrate into `assertTrace` through `grounding` and `survival`.
+
+```ts
+import { assertGrounding, assertTransformationSurvival } from 'agent-vcr'
+
+const calls = [{ name: 'privileged_write', args: { owner: 'actor-a' } }]
+const grounding = assertGrounding(calls,
+  [{ tool: 'privileged_write', arguments: ['owner'] }],
+  [{ id: 'state', kind: 'state', value: { owner: 'actor-a' }, availableBefore: 0 }],
+  [{ call: 0, argument: 'owner', source: 'state', path: 'owner' }])
+
+const survival = assertTransformationSurvival(calls,
+  [{ id: 'clean', kind: 'sanitize', atCall: 0,
+     before: 'authorized owner: actor-a', after: 'authorized owner: actor-a' }],
+  [{ id: 'owner', fact: 'owner: actor-a', neededBy: 'privileged_write' }])
+```
+
+Grounding checks every protected argument on every matching invocation. Sources are explicit
+user text or system state, with the index of the first call allowed to use them. User citations
+require exact UTF-16 `[start, end)` spans; state citations use own-property paths and typed equality.
+Future state, missing citations and numeric/identifier substring cherry-picking fail. Source
+records must come from trusted instrumentation; a model's unsupported self-citation is not proof.
+Literal provenance establishes where a value appeared, not user intent or authorization.
+
+Survival events contain effective context before and after sanitization, summarization, or
+compaction, including retained context. Every applicable boundary is checked. Missing input
+facts, lost output facts, and unexercised contracts all fail. Matching is literal and case-sensitive;
+choose stable identifiers or structured fact text rather than broad prose. Instrument each actual
+transformation; this assertion cannot discover unrecorded context changes.
+
+Tests cover both valid evidence and defects. Existing summary contracts and versioned trace
+schemas remain compatible; these assertions accept separate evidence records.
