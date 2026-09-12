@@ -13,7 +13,7 @@ describe('counterfactual replay never fabricates tool returns', () => {
     const result = await counterfactualReplay({ prompt: 'Use fewer words.', recording,
       model: { complete: async messages => {
         expect(messages[0]!.content).toBe('Use fewer words.')
-        if (step++ === 0) return assistantWithTools([toolCall('read', { flags: [1, 2], id: 'x' }, 'a')])
+        if (step++ === 0) return assistantWithTools([toolCall('read', { id: 'x', flags: [1, 2] }, 'a')])
         if (step === 2) {
           expect(messages.at(-1)!.content).toBe('{"value":7}')
           return assistantWithTools([toolCall('write', { id: 'x', value: 7 }, 'b')])

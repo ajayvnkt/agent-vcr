@@ -127,6 +127,8 @@ export type { RecordConfig, RecordConfigFile, ToolDefinition } from './record.js
 // ── Project scaffolding ───────────────────────────────────────────────────────
 export { initProject } from './init.js'
 export { collectTrace } from './loop.js'
+export { replayPlannerRouting } from './planner.js'
+export type { PlannerRoutingOptions } from './planner.js'
 export type { InitOptions, InitResult } from './init.js'
 
 export { assertGrounding, assertTransformationSurvival } from './evidence.js'

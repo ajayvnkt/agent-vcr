@@ -8,10 +8,17 @@ system must capture actual returns; a trace containing only names/arguments is i
 The recorder/gateway correspondence is a caller-supplied prerequisite, not a claim this function verifies.
 
 Every requested call must match the next recorded name and complete parsed arguments exactly.
-Object key order is ignored; array order, omitted/extra fields and types are not. Divergence,
+Identity uses a SHA-256 digest of the full canonical argument object, tool name and sequence
+position, plus a strict key-order guard. Reordered keys are refused as well as changed values,
+array order, omitted/extra fields and types. Divergence,
 unknown calls, early completion, missing results, malformed requests, callback failures and
 step exhaustion return **INCONCLUSIVE**. An entire tool-request batch is checked before any of
 its results are released. There is no live tool executor or fallback on this API.
+Unsafe numeric identities, precision-losing JSON literals, duplicate keys, accessors, sparse
+arrays and non-JSON values are refused before any return is released. Input snapshots prevent
+callbacks from rewriting validated evidence. Capture and disk-loading paths use the same
+strict parser; malformed arguments no longer become synthetic `_raw` or `_value` objects.
+
 COMPLETE means the recorded path was consumed and the model terminated; it does not prove outcome quality.
 
 Tool replay costs no tool invocations. Changed prompts still require model inference: offline

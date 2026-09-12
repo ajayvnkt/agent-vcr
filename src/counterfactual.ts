@@ -1,7 +1,7 @@
 /** Strict counterfactual tool-return replay. No live tool executor exists on this interface. */
 import type { ChatMessage, ToolCallRecord } from './types.js'
 import type { LlmComplete } from './loop.js'
-import { callsEqual } from './normalize.js'
+import { callIdentity, exactSnapshot, parseExactArguments, sameIdentity } from './replay-identity.js'
 
 export type RecordedToolReturn = ToolCallRecord & { result: unknown }
 export type CounterfactualOptions = {
@@ -20,16 +20,6 @@ export type CounterfactualResult = {
   divergence?: { atCall: number; expected?: ToolCallRecord; actual?: ToolCallRecord }
 }
 
-function jsonValue(value: unknown): boolean {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (Array.isArray(value)) return value.every(jsonValue)
-  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-    return Object.values(value).every(jsonValue)
-  }
-  return false
-}
-
 export async function counterfactualReplay(options: CounterfactualOptions): Promise<CounterfactualResult> {
   const messages: ChatMessage[] = []
   let consumed = 0
@@ -42,12 +32,13 @@ export async function counterfactualReplay(options: CounterfactualOptions): Prom
     if (typeof options.prompt !== 'string' || !options.prompt.trim() || !Array.isArray(options.recording)) {
       return finish('INCONCLUSIVE', 'invalid prompt or recording')
     }
-    if (!jsonValue(options.recording) || options.recording.some(r => !r.name ||
+    recording = exactSnapshot(options.recording)
+    if (recording.some(r => typeof r.name !== 'string' || !r.name ||
       !r.args || Array.isArray(r.args) || typeof r.args !== 'object' ||
       !Object.prototype.hasOwnProperty.call(r, 'result'))) {
       return finish('INCONCLUSIVE', 'recording requires exact JSON arguments and a captured result for every call')
     }
-    recording = structuredClone(options.recording)
+    recording.forEach((call, position) => callIdentity(call, position))
   } catch {
     return finish('INCONCLUSIVE', 'invalid or cyclic recording')
   }
@@ -60,7 +51,7 @@ export async function counterfactualReplay(options: CounterfactualOptions): Prom
     let response
     try {
       modelCalls++
-      response = await options.model.complete(structuredClone(messages))
+      response = exactSnapshot(await options.model.complete(structuredClone(messages)), ['tool_calls', 'planner_output'])
       if (!response || (response.content !== null && typeof response.content !== 'string') ||
         (response.tool_calls !== undefined && !Array.isArray(response.tool_calls))) {
         return finish('INCONCLUSIVE', 'malformed model response')
@@ -80,20 +71,21 @@ export async function counterfactualReplay(options: CounterfactualOptions): Prom
       const requested = calls[i]!
       let actual: ToolCallRecord
       try {
-        if (requested.type !== 'function' || !requested.id || callIds.has(requested.id)) {
+        if (requested.type !== 'function' || typeof requested.id !== 'string' || !requested.id || callIds.has(requested.id)) {
           return finish('INCONCLUSIVE', 'invalid or reused tool-call identifier')
         }
         callIds.add(requested.id)
-        const args: unknown = JSON.parse(requested.function.arguments)
-        if (!args || typeof args !== 'object' || Array.isArray(args) || !jsonValue(args)) {
+        const args = parseExactArguments(requested.function.arguments)
+        if (!args || typeof args !== 'object' || Array.isArray(args)) {
           return finish('INCONCLUSIVE', 'invalid tool arguments')
         }
-        actual = { name: requested.function.name, args: args as Record<string, unknown> }
+        actual = { name: requested.function.name, args }
+        callIdentity(actual, consumed + i)
       } catch {
         return finish('INCONCLUSIVE', 'malformed tool request')
       }
       const expected = recording[consumed + i]
-      if (!expected || !callsEqual(expected, actual)) {
+      if (!expected || !sameIdentity(callIdentity(expected, consumed + i), callIdentity(actual, consumed + i))) {
         return finish('INCONCLUSIVE', 'requested tool diverges from recording', {
           atCall: consumed + i, actual,
           ...(expected ? { expected: { name: expected.name, args: expected.args } } : {}),
