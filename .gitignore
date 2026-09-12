@@ -9,3 +9,9 @@ coverage/
 
 # live-check logs
 *.log
+
+Claude outputs/
+work/
+artifacts/
+outputs/
+.venv/
