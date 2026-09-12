@@ -15,6 +15,7 @@ export type {
   ToolCallRecord,
   ToolCallSpec,
   TraceFileV1,
+  PlannerOutput,
 } from './types.js'
 
 // ── Trace comparison ──────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ export type { RecordConfig, RecordConfigFile, ToolDefinition } from './record.js
 
 // ── Project scaffolding ───────────────────────────────────────────────────────
 export { initProject } from './init.js'
+export { collectTrace } from './loop.js'
 export type { InitOptions, InitResult } from './init.js'
 
 export { assertGrounding, assertTransformationSurvival } from './evidence.js'

@@ -145,7 +145,7 @@ describe('recordTrace', () => {
     ).rejects.toThrow(/API error 401/)
   })
 
-  it('stores _raw when tool arguments are invalid JSON', async () => {
+  it('refuses invalid argument JSON without inventing an argument object', async () => {
     let call = 0
     const httpFetch = vi.fn(async () => {
       call++
@@ -172,7 +172,7 @@ describe('recordTrace', () => {
       })
     })
 
-    const trace = await recordTrace({
+    await expect(recordTrace({
       apiKey: 'sk-x',
       user: 'u',
       tools: [
@@ -184,11 +184,7 @@ describe('recordTrace', () => {
       ],
       maxSteps: 8,
       httpFetch,
-    })
-
-    expect(trace.calls).toHaveLength(1)
-    expect(trace.calls[0]!.name).toBe('broken')
-    expect(trace.calls[0]!.args).toEqual({ _raw: 'not-json{' })
-    expect(httpFetch).toHaveBeenCalledTimes(2)
+    })).rejects.toThrow()
+    expect(httpFetch).toHaveBeenCalledTimes(1)
   })
 })

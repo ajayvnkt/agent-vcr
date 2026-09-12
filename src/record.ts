@@ -44,7 +44,8 @@
  * ```
  */
 
-import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec, TraceFileV1 } from './types.js'
+import { exactSnapshot, parseExactArguments } from './replay-identity.js'
+import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec, TraceFileV1, PlannerOutput } from './types.js'
 
 /** JSON Schema object for a tool's parameters. */
 export type ToolDefinition = {
@@ -91,6 +92,8 @@ export type RecordConfig = {
    * Override HTTP client (defaults to global `fetch`). Used for tests and custom proxies.
    */
   httpFetch?: typeof fetch
+  /** The caller identifies emitted content as application planner output. */
+  capturePlannerOutput?: boolean
 }
 
 // ── Internal types ──────────────────────────────────────────────────────────
@@ -148,6 +151,7 @@ export async function recordTrace(config: RecordConfig): Promise<TraceFileV1> {
   messages.push({ role: 'user', content: config.user })
 
   const recorded: ToolCallRecord[] = []
+  const plannerOutputs: PlannerOutput[] = []
   let steps = 0
 
   const fetchFn = config.httpFetch ?? globalThis.fetch.bind(globalThis)
@@ -155,6 +159,9 @@ export async function recordTrace(config: RecordConfig): Promise<TraceFileV1> {
   while (steps < maxSteps) {
     steps++
     const turn = await callOpenAICompat(messages, config.tools, { model, baseURL, apiKey }, fetchFn)
+    if (config.capturePlannerOutput && turn.content !== null) {
+      plannerOutputs.push({ atStep: steps, atCall: recorded.length, callCount: turn.tool_calls?.length ?? 0, text: turn.content })
+    }
     const toolCalls = turn.tool_calls
 
     if (!toolCalls?.length) {
@@ -173,7 +180,7 @@ export async function recordTrace(config: RecordConfig): Promise<TraceFileV1> {
       const args = parseArgs(tc.function.arguments)
       const record: ToolCallRecord = { name, args }
       recorded.push(record)
-      config.onToolCall?.(record, recorded.length)
+      config.onToolCall?.(exactSnapshot(record), recorded.length)
 
       const stubResult = config.stubs?.[name] ?? { ok: true }
       const resultStr = JSON.stringify(stubResult)
@@ -183,6 +190,7 @@ export async function recordTrace(config: RecordConfig): Promise<TraceFileV1> {
 
   return {
     version: 1,
+    ...(plannerOutputs.length ? { plannerOutputs } : {}),
     ...(config.scenario ? { scenario: config.scenario } : {}),
     calls: recorded,
   }
@@ -240,16 +248,7 @@ async function callOpenAICompat(
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
-  if (!raw.trim()) return {}
-  try {
-    const v = JSON.parse(raw) as unknown
-    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-      return v as Record<string, unknown>
-    }
-    return { _value: v }
-  } catch {
-    return { _raw: raw }
-  }
+  return parseExactArguments(raw)
 }
 
 /** Zod schema for a record config JSON file (used by the CLI). */
