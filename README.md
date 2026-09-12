@@ -1,5 +1,9 @@
 # Agent VCR
 
+[Recorded planner replay](docs/planner-replay.md) captures application plans and
+checks a deterministic router with zero additional model calls. Missing planner
+evidence reports `UNKNOWN`.
+
 The additive [generic assurance APIs](docs/generic-assurance.md) include strict counterfactual
 tool-return replay and token-attributed context diffs. Divergent tool paths remain INCONCLUSIVE;
 token deltas are measurements, not cost-saving claims. Existing APIs remain unchanged.
