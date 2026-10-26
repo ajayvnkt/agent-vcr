@@ -2,7 +2,7 @@
  * @fileoverview Generic tool-calling loop that records each tool name + parsed args.
  */
 
-import { exactSnapshot, parseToolArguments as parseArgumentText } from './replay-identity.js'
+import { exactSnapshot, parseToolArguments as parseArgumentText, snapshotAssistantTurn } from './replay-identity.js'
 import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec, TraceFileV1, PlannerOutput } from './types.js'
 
 export type LlmComplete = (messages: ChatMessage[]) => Promise<AssistantTurn>
@@ -50,7 +50,7 @@ export async function collectTrace(options: CollectOptions): Promise<TraceFileV1
 
   while (steps < maxSteps) {
     steps++
-    const assistant = exactSnapshot(await options.llm.complete(messages), ['tool_calls', 'planner_output'])
+    const assistant = snapshotAssistantTurn(await options.llm.complete(messages))
     const plan = assistant.planner_output ?? (options.capturePlannerOutput ? assistant.content : null)
     if (plan !== null && plan !== undefined) {
       if (typeof plan !== 'string') throw new Error('planner output must be literal text')

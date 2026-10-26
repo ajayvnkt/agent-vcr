@@ -109,6 +109,22 @@ export function parseToolArguments(text: string): Record<string, unknown> {
   return parseExactArguments(text)
 }
 
+/**
+ * Snapshot the fields of an assistant turn that the library records: content,
+ * tool_calls and planner_output. Unrelated metadata a callback returns (usage,
+ * response ids, undefined fields) is ignored rather than refused. A missing
+ * content is treated as null. Non-object turns are snapshotted as-is so callers
+ * still see malformed responses.
+ */
+export function snapshotAssistantTurn<T>(turn: T): T {
+  if (!turn || typeof turn !== 'object' || Array.isArray(turn)) return exactSnapshot(turn)
+  const source = turn as Record<string, unknown>
+  const picked: Record<string, unknown> = { content: source.content === undefined ? null : source.content }
+  if (source.tool_calls !== undefined) picked.tool_calls = source.tool_calls
+  if (source.planner_output !== undefined) picked.planner_output = source.planner_output
+  return exactSnapshot(picked) as T
+}
+
 export function callIdentity(call: { name: string; args: Record<string, unknown> }, position: number) {
   const snapshot = exactSnapshot(call)
   if (typeof snapshot.name !== 'string' || !snapshot.name.trim() || !snapshot.args ||
