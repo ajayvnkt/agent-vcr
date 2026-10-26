@@ -44,7 +44,7 @@
  * ```
  */
 
-import { exactSnapshot, parseExactArguments } from './replay-identity.js'
+import { exactSnapshot, parseToolArguments } from './replay-identity.js'
 import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec, TraceFileV1, PlannerOutput } from './types.js'
 
 /** JSON Schema object for a tool's parameters. */
@@ -248,7 +248,7 @@ async function callOpenAICompat(
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
-  return parseExactArguments(raw)
+  return parseToolArguments(raw)
 }
 
 /** Zod schema for a record config JSON file (used by the CLI). */

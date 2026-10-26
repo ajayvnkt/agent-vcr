@@ -2,7 +2,7 @@
  * @fileoverview Generic tool-calling loop that records each tool name + parsed args.
  */
 
-import { exactSnapshot, parseExactArguments } from './replay-identity.js'
+import { exactSnapshot, parseToolArguments as parseArgumentText } from './replay-identity.js'
 import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec, TraceFileV1, PlannerOutput } from './types.js'
 
 export type LlmComplete = (messages: ChatMessage[]) => Promise<AssistantTurn>
@@ -22,7 +22,7 @@ export type CollectOptions = {
 }
 
 function parseToolArguments(raw: string): Record<string, unknown> {
-  return parseExactArguments(raw)
+  return parseArgumentText(raw)
 }
 
 function randomId(): string {

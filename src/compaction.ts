@@ -10,7 +10,7 @@
  * so downstream tooling can attribute behaviour changes to a specific cut.
  */
 
-import { exactSnapshot, parseExactArguments } from './replay-identity.js'
+import { exactSnapshot, parseToolArguments as parseArgumentText } from './replay-identity.js'
 import type { ChatMessage, ToolCallRecord, ToolCallSpec, PlannerOutput } from './types.js'
 import type { LlmComplete, ToolExecutorFn } from './loop.js'
 
@@ -124,7 +124,7 @@ export function tailFromRecentAssistantTurns(messages: ChatMessage[], k: number)
 }
 
 function parseToolArguments(raw: string): Record<string, unknown> {
-  return parseExactArguments(raw)
+  return parseArgumentText(raw)
 }
 
 /**

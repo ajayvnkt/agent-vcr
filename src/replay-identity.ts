@@ -103,6 +103,12 @@ export function parseExactArguments(text: string): Record<string, unknown> {
   return parsed as Record<string, unknown>
 }
 
+/** Tool-call argument text. Providers send "" for zero-argument tools, which means {}. */
+export function parseToolArguments(text: string): Record<string, unknown> {
+  if (typeof text === 'string' && text.trim() === '') return {}
+  return parseExactArguments(text)
+}
+
 export function callIdentity(call: { name: string; args: Record<string, unknown> }, position: number) {
   const snapshot = exactSnapshot(call)
   if (typeof snapshot.name !== 'string' || !snapshot.name.trim() || !snapshot.args ||

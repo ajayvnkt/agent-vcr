@@ -1,7 +1,7 @@
 /** Strict counterfactual tool-return replay. No live tool executor exists on this interface. */
 import type { ChatMessage, ToolCallRecord } from './types.js'
 import type { LlmComplete } from './loop.js'
-import { callIdentity, exactSnapshot, parseExactArguments, sameIdentity } from './replay-identity.js'
+import { callIdentity, exactSnapshot, parseToolArguments, sameIdentity } from './replay-identity.js'
 
 export type RecordedToolReturn = ToolCallRecord & { result: unknown }
 export type CounterfactualOptions = {
@@ -75,7 +75,7 @@ export async function counterfactualReplay(options: CounterfactualOptions): Prom
           return finish('INCONCLUSIVE', 'invalid or reused tool-call identifier')
         }
         callIds.add(requested.id)
-        const args = parseExactArguments(requested.function.arguments)
+        const args = parseToolArguments(requested.function.arguments)
         if (!args || typeof args !== 'object' || Array.isArray(args)) {
           return finish('INCONCLUSIVE', 'invalid tool arguments')
         }
