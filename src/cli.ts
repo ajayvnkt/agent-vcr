@@ -9,6 +9,7 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { z } from 'zod'
 import { parseTraceFileV1, safeParseTraceFileV1 } from './schema.js'
 import { compareTraces } from './diff.js'
 import { callsEqual } from './normalize.js'
@@ -109,13 +110,13 @@ async function cmdDiff(
 
   if (!expParsed.success) {
     log(`${c.red('✖')} Invalid expected trace: ${expectedPath}`)
-    log(JSON.stringify(expParsed.error.flatten(), null, 2))
+    log(JSON.stringify(z.flattenError(expParsed.error), null, 2))
     process.exitCode = 2
     return
   }
   if (!actParsed.success) {
     log(`${c.red('✖')} Invalid actual trace: ${actualPath}`)
-    log(JSON.stringify(actParsed.error.flatten(), null, 2))
+    log(JSON.stringify(z.flattenError(actParsed.error), null, 2))
     process.exitCode = 2
     return
   }
