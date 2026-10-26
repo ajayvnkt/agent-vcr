@@ -109,19 +109,27 @@ export function parseToolArguments(text: string): Record<string, unknown> {
   return parseExactArguments(text)
 }
 
+const RECORDED_TURN_FIELDS = ['content', 'tool_calls', 'planner_output'] as const
+
 /**
  * Snapshot the fields of an assistant turn that the library records: content,
- * tool_calls and planner_output. Unrelated metadata a callback returns (usage,
- * response ids, undefined fields) is ignored rather than refused. A missing
- * content is treated as null. Non-object turns are snapshotted as-is so callers
- * still see malformed responses.
+ * tool_calls and planner_output. Other keys a callback returns (usage, response
+ * ids, undefined metadata) are ignored rather than refused. The turn itself must
+ * still be a plain object, and each recorded field must be an own, enumerable
+ * data property (no getters, no inherited or hidden fields). A recorded field
+ * set to undefined is treated as absent, so a turn without content is still
+ * reported as malformed by callers that require it.
  */
 export function snapshotAssistantTurn<T>(turn: T): T {
-  if (!turn || typeof turn !== 'object' || Array.isArray(turn)) return exactSnapshot(turn)
-  const source = turn as Record<string, unknown>
-  const picked: Record<string, unknown> = { content: source.content === undefined ? null : source.content }
-  if (source.tool_calls !== undefined) picked.tool_calls = source.tool_calls
-  if (source.planner_output !== undefined) picked.planner_output = source.planner_output
+  if (!turn || typeof turn !== 'object' || Array.isArray(turn) ||
+      Object.getPrototypeOf(turn) !== Object.prototype) return exactSnapshot(turn)
+  const picked: Record<string, unknown> = {}
+  for (const key of RECORDED_TURN_FIELDS) {
+    const descriptor = Object.getOwnPropertyDescriptor(turn, key)
+    if (!descriptor) continue
+    if (!descriptor.enumerable || !('value' in descriptor)) throw new Error('JSON data properties required')
+    if (descriptor.value !== undefined) picked[key] = descriptor.value
+  }
   return exactSnapshot(picked) as T
 }
 

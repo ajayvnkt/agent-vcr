@@ -8,9 +8,10 @@ const ping = { id: 'a', type: 'function' as const, function: { name: 'ping', arg
 // What a hand-written llm.complete often returns: provider metadata alongside the turn.
 const turns = (): AssistantTurn[] => [
   { content: null, tool_calls: [ping], usage: undefined } as unknown as AssistantTurn,
-  { content: undefined, id: 'resp_2', usage: { input: 3 } } as unknown as AssistantTurn,
+  { content: 'done', id: 'resp_2', usage: { input: 3 }, extra: undefined } as unknown as AssistantTurn,
 ]
-const scripted = () => { const t = turns(); let i = 0; return { complete: async () => t[i++]! } }
+const scripted = (t: AssistantTurn[] = turns()) => { let i = 0; return { complete: async () => t[i++]! } }
+const once = (turn: unknown) => ({ complete: async () => turn as AssistantTurn })
 
 describe('assistant turns with extra metadata', () => {
   it('collectToolCalls ignores fields it does not record', async () => {
@@ -22,7 +23,7 @@ describe('assistant turns with extra metadata', () => {
     const run = await collectWithCompaction({ user: 'u', llm: scripted(), executeTool: async () => 'pong',
       compaction: { shouldCompact: () => false, summarize: async () => '' } })
     expect(run.calls).toEqual([{ name: 'ping', args: {} }])
-    expect(run.finalContent).toBeNull()
+    expect(run.finalContent).toBe('done')
   })
 
   it('counterfactual replay ignores fields it does not record', async () => {
@@ -31,8 +32,25 @@ describe('assistant turns with extra metadata', () => {
     expect(result.status).toBe('COMPLETE')
   })
 
+  it('counterfactual replay still reports responses without content as malformed', async () => {
+    for (const response of [{}, { text: 'hi' }, { choices: [] }, { content: undefined, usage: {} }]) {
+      const result = await counterfactualReplay({ prompt: 'u', model: once(response), recording: [] })
+      expect(result).toMatchObject({ status: 'INCONCLUSIVE', reason: 'malformed model response' })
+    }
+  })
+
   it('still refuses inexact data in the fields it records', async () => {
-    const llm = { complete: async () => ({ content: null, tool_calls: [{ ...ping, extra: undefined }] }) as unknown as AssistantTurn }
-    await expect(collectToolCalls({ user: 'u', llm, executeTool: async () => 'pong' })).rejects.toThrow(/inexact/)
+    const nested = once({ content: null, tool_calls: [{ ...ping, extra: undefined }] })
+    await expect(collectToolCalls({ user: 'u', llm: nested, executeTool: async () => 'pong' })).rejects.toThrow(/inexact/)
+  })
+
+  it('still refuses getters, hidden fields, inherited fields and non-plain turns', async () => {
+    const getter = { content: null, get tool_calls() { return [ping] } }
+    const hidden = Object.defineProperty({ content: null }, 'tool_calls', { value: [ping], enumerable: false })
+    const inherited = Object.assign(Object.create({ tool_calls: [ping] }), { content: null })
+    class Turn { content = null; tool_calls = [ping] }
+    for (const turn of [getter, hidden, inherited, new Turn()]) {
+      await expect(collectToolCalls({ user: 'u', llm: once(turn), executeTool: async () => 'pong' })).rejects.toThrow()
+    }
   })
 })
