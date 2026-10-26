@@ -10,7 +10,8 @@
  * so downstream tooling can attribute behaviour changes to a specific cut.
  */
 
-import type { ChatMessage, ToolCallRecord, ToolCallSpec } from './types.js'
+import { exactSnapshot, parseToolArguments as parseArgumentText } from './replay-identity.js'
+import type { ChatMessage, ToolCallRecord, ToolCallSpec, PlannerOutput } from './types.js'
 import type { LlmComplete, ToolExecutorFn } from './loop.js'
 
 /** One context cut inside a run. */
@@ -28,6 +29,9 @@ export type CompactionEvent = {
   /** Rough context size before/after, in the estimator's units. */
   tokensBefore: number
   tokensAfter: number
+  /** Opt-in literal effective context, including retained messages. */
+  effectiveBefore?: string
+  effectiveAfter?: string
 }
 
 export type CompactedRun = {
@@ -36,6 +40,7 @@ export type CompactedRun = {
   steps: number
   /** Final assistant text, when the run ended cleanly. */
   finalContent: string | null
+  plannerOutputs?: PlannerOutput[]
 }
 
 export type CompactionContext = {
@@ -64,9 +69,17 @@ export type CollectWithCompactionOptions = {
   executeTool: ToolExecutorFn
   maxSteps?: number
   compaction: CompactionPolicy
+  /** Capture full local context for evidence assertions. May contain sensitive data. */
+  captureEvidence?: boolean
+  capturePlannerOutput?: boolean
 }
 
 const DEFAULT_KEEP_RECENT_TURNS = 2
+
+function effectiveText(messages: ChatMessage[]): string {
+  return messages.map(m => [m.content ?? '', ...('tool_calls' in m
+    ? (m.tool_calls ?? []).map(c => `${c.function.name}\n${c.function.arguments}`) : [])].join('\n')).join('\n')
+}
 
 function defaultResume(summary: string): string {
   return [
@@ -111,18 +124,7 @@ export function tailFromRecentAssistantTurns(messages: ChatMessage[], k: number)
 }
 
 function parseToolArguments(raw: string): Record<string, unknown> {
-  const trimmed = raw.trim()
-  if (trimmed === '') return {}
-  try {
-    const v = JSON.parse(trimmed) as unknown
-    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-      return v as Record<string, unknown>
-    }
-    return { _value: v as unknown }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    throw new Error(`Invalid JSON in tool arguments: ${msg}`)
-  }
+  return parseArgumentText(raw)
 }
 
 /**
@@ -148,6 +150,7 @@ export async function collectWithCompaction(
 
   const calls: ToolCallRecord[] = []
   const compactions: CompactionEvent[] = []
+  const plannerOutputs: PlannerOutput[] = []
   let steps = 0
   let finalContent: string | null = null
 
@@ -156,6 +159,7 @@ export async function collectWithCompaction(
 
     const approxTokens = estimate(messages)
     if (policy.shouldCompact({ messages, step: steps, approxTokens })) {
+      const before = options.captureEvidence ? effectiveText(messages) : undefined
       const summary = await policy.summarize(messages)
       const tail = tailFromRecentAssistantTurns(messages, keepRecent)
       const rebuilt: ChatMessage[] = []
@@ -171,12 +175,19 @@ export async function collectWithCompaction(
         keptRecentTurns: tail.filter((m) => m.role === 'assistant').length,
         tokensBefore: approxTokens,
         tokensAfter: estimate(rebuilt),
+        ...(options.captureEvidence ? { effectiveBefore: before,
+          effectiveAfter: effectiveText(rebuilt) } : {}),
       })
 
       messages = rebuilt
     }
 
-    const assistant = await options.llm.complete(messages)
+    const assistant = exactSnapshot(await options.llm.complete(messages), ['tool_calls', 'planner_output'])
+    const plan = assistant.planner_output ?? (options.capturePlannerOutput ? assistant.content : null)
+    if (plan !== null && plan !== undefined) {
+      if (typeof plan !== 'string') throw new Error('planner output must be literal text')
+      plannerOutputs.push({ atStep: steps, atCall: calls.length, callCount: assistant.tool_calls?.length ?? 0, text: plan })
+    }
     const toolCalls = assistant.tool_calls
 
     if (!toolCalls?.length) {
@@ -203,7 +214,7 @@ export async function collectWithCompaction(
     )
   }
 
-  return { calls, compactions, steps, finalContent }
+  return { calls, compactions, steps, finalContent, ...(plannerOutputs.length ? { plannerOutputs } : {}) }
 }
 
 async function recordAndExecuteOne(
@@ -218,7 +229,7 @@ async function recordAndExecuteOne(
   const name = tc.function.name
   const args = parseToolArguments(tc.function.arguments)
   calls.push({ name, args })
-  const result = await executeTool(name, args)
+  const result = await executeTool(name, exactSnapshot(args))
   const content = typeof result === 'string' ? result : JSON.stringify(result)
   messages.push({ role: 'tool', tool_call_id: tc.id, content })
 }

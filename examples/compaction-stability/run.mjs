@@ -21,6 +21,7 @@ import {
   compactAtTokenBudget,
   toolCall,
 } from '../../dist/index.js'
+import evidenceAssertion, { evidenceFromCompactedRun } from '../../dist/promptfoo.js'
 
 const ORDER_ID = '4471'
 
@@ -99,7 +100,8 @@ function makeSummarizer(rand, dropIdChance) {
 async function oneRun(rand, dropIdChance) {
   return collectWithCompaction({
     system: 'You are a support agent. Verify the order before refunding.',
-    user: 'Refund the customer for their damaged item.',
+    user: `Refund the customer for their damaged item on order ${ORDER_ID}.`,
+    captureEvidence: true,
     llm: { complete: makeAgent() },
     executeTool: async () => 'x'.repeat(3000),
     maxSteps: 12,
@@ -134,6 +136,20 @@ console.log(`\n${report.summary}\n`)
 
 const baselineRun = runs.find((r) => r.calls.some((c) => c.name === 'refund_order'))
 if (!baselineRun) throw new Error('no successful run to ablate against')
+
+// Exercise the evidence adapter on this existing collector example. The user input
+// now contains the reference explicitly so the summarizer is preserving a real signal.
+const captured = evidenceFromCompactedRun(baselineRun)
+const evidenceConfig = { survival: [{ id: 'reference', fact: ORDER_ID, neededBy: 'refund_order' }] }
+const grade = evidenceAssertion('', { config: evidenceConfig,
+  providerResponse: { metadata: { vcrEvidence: captured } } })
+if (!grade.pass) throw new Error(grade.reason)
+const lost = structuredClone(captured)
+for (const event of lost.transformations) event.after = event.after.replaceAll(ORDER_ID, '[lost]')
+const rejected = evidenceAssertion('', { config: evidenceConfig,
+  providerResponse: { metadata: { vcrEvidence: lost } } })
+if (rejected.pass) throw new Error('lost-reference negative control unexpectedly passed')
+console.log('Evidence assertions: preserved reference passes; lost reference rejected.')
 
 const cut = baselineRun.compactions[0]
 const cutAt = cut.atCall

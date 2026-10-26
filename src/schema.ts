@@ -9,10 +9,18 @@ const recordSchema = z.object({
   args: z.record(z.unknown()).default({}),
 })
 
+export const plannerOutputSchema = z.object({
+  atStep: z.number().int().positive(),
+  atCall: z.number().int().nonnegative(),
+  callCount: z.number().int().nonnegative(),
+  text: z.string(),
+})
+
 export const traceFileV1Schema = z.object({
   version: z.literal(1),
   scenario: z.string().optional(),
   calls: z.array(recordSchema),
+  plannerOutputs: z.array(plannerOutputSchema).optional(),
 })
 
 export type ParsedTraceFileV1 = z.infer<typeof traceFileV1Schema>
@@ -33,6 +41,7 @@ export const traceFileV2Schema = z.object({
   scenario: z.string().optional(),
   calls: z.array(recordSchema),
   compactions: z.array(compactionEventSchema).default([]),
+  plannerOutputs: z.array(plannerOutputSchema).optional(),
 })
 
 export type ParsedTraceFileV2 = z.infer<typeof traceFileV2Schema>
@@ -43,7 +52,8 @@ export const traceFileSchema = z.union([traceFileV1Schema, traceFileV2Schema])
 export function parseTraceFile(raw: unknown): ParsedTraceFileV2 {
   const parsed = traceFileSchema.parse(raw)
   if (parsed.version === 2) return parsed
-  return { version: 2, scenario: parsed.scenario, calls: parsed.calls, compactions: [] }
+  return { version: 2, scenario: parsed.scenario, calls: parsed.calls, compactions: [],
+    ...(parsed.plannerOutputs ? { plannerOutputs: parsed.plannerOutputs } : {}) }
 }
 
 export function parseTraceFileV1(raw: unknown): ParsedTraceFileV1 {

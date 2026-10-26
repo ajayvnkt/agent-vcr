@@ -2,7 +2,8 @@
  * @fileoverview Generic tool-calling loop that records each tool name + parsed args.
  */
 
-import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec } from './types.js'
+import { exactSnapshot, parseToolArguments as parseArgumentText } from './replay-identity.js'
+import type { AssistantTurn, ChatMessage, ToolCallRecord, ToolCallSpec, TraceFileV1, PlannerOutput } from './types.js'
 
 export type LlmComplete = (messages: ChatMessage[]) => Promise<AssistantTurn>
 
@@ -16,21 +17,12 @@ export type CollectOptions = {
   executeTool: ToolExecutorFn
   /** Guard against runaway loops (default 32). */
   maxSteps?: number
+  /** Explicitly identify this model's emitted content as application planner output. */
+  capturePlannerOutput?: boolean
 }
 
 function parseToolArguments(raw: string): Record<string, unknown> {
-  const trimmed = raw.trim()
-  if (trimmed === '') return {}
-  try {
-    const v = JSON.parse(trimmed) as unknown
-    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-      return v as Record<string, unknown>
-    }
-    return { _value: v as unknown }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    throw new Error(`Invalid JSON in tool arguments: ${msg}`)
-  }
+  return parseArgumentText(raw)
 }
 
 function randomId(): string {
@@ -42,17 +34,28 @@ function randomId(): string {
  * Stops when the assistant returns without tool_calls or maxSteps is exceeded.
  */
 export async function collectToolCalls(options: CollectOptions): Promise<ToolCallRecord[]> {
+  return (await collectTrace(options)).calls
+}
+
+/** Collection including planner output, retaining the old calls-only API. */
+export async function collectTrace(options: CollectOptions): Promise<TraceFileV1> {
   const maxSteps = options.maxSteps ?? 32
   const messages: ChatMessage[] = []
   if (options.system) messages.push({ role: 'system', content: options.system })
   messages.push({ role: 'user', content: options.user })
 
   const recorded: ToolCallRecord[] = []
+  const plannerOutputs: PlannerOutput[] = []
   let steps = 0
 
   while (steps < maxSteps) {
     steps++
-    const assistant = await options.llm.complete(messages)
+    const assistant = exactSnapshot(await options.llm.complete(messages), ['tool_calls', 'planner_output'])
+    const plan = assistant.planner_output ?? (options.capturePlannerOutput ? assistant.content : null)
+    if (plan !== null && plan !== undefined) {
+      if (typeof plan !== 'string') throw new Error('planner output must be literal text')
+      plannerOutputs.push({ atStep: steps, atCall: recorded.length, callCount: assistant.tool_calls?.length ?? 0, text: plan })
+    }
     const toolCalls = assistant.tool_calls
 
     if (!toolCalls?.length) {
@@ -81,7 +84,7 @@ export async function collectToolCalls(options: CollectOptions): Promise<ToolCal
     )
   }
 
-  return recorded
+  return { version: 1, calls: recorded, ...(plannerOutputs.length ? { plannerOutputs } : {}) }
 }
 
 async function recordAndExecuteOne(
@@ -96,7 +99,7 @@ async function recordAndExecuteOne(
   const name = tc.function.name
   const args = parseToolArguments(tc.function.arguments)
   recorded.push({ name, args })
-  const result = await executeTool(name, args)
+  const result = await executeTool(name, exactSnapshot(args))
   const content = typeof result === 'string' ? result : JSON.stringify(result)
   messages.push({
     role: 'tool',

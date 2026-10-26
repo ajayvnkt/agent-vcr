@@ -17,6 +17,8 @@
 
 import type { ToolCallRecord } from './types.js'
 import { stableStringify } from './normalize.js'
+import { assertGrounding, assertTransformationSurvival } from './evidence.js'
+import type { GroundingSource, GroundingCitation, GroundingRule, TransformationEvent, SurvivalRule } from './evidence.js'
 
 /** How one argument is checked. A bare value is shorthand for `{ equals: value }`. */
 export type ArgMatcher =
@@ -37,6 +39,9 @@ export type ToolExpectation = {
 export type ToolPattern = string | ToolExpectation
 
 export type TraceAssertion = {
+  grounding?: { rules: GroundingRule[]; sources: GroundingSource[]; citations: GroundingCitation[] }
+  survival?: { rules: SurvivalRule[]; events: TransformationEvent[] }
+
   /** These tools must appear in this relative order. Other calls may sit between them. */
   sequence?: ToolPattern[]
   /** These tools must appear at least once, in any order. */
@@ -71,6 +76,8 @@ export type AssertionFailureKind =
   | 'maxCalls'
   | 'maxCallsPerTool'
   | 'args'
+  | 'grounding'
+  | 'survival'
 
 export type AssertionFailure = {
   kind: AssertionFailureKind
@@ -170,6 +177,14 @@ export function assertTrace(
   assertion: TraceAssertion,
 ): AssertionFailure[] {
   const failures: AssertionFailure[] = []
+  if (assertion.grounding) {
+    const g = assertion.grounding
+    failures.push(...assertGrounding(calls, g.rules, g.sources, g.citations))
+  }
+  if (assertion.survival) {
+    failures.push(...assertTransformationSurvival(calls, assertion.survival.events, assertion.survival.rules))
+  }
+
 
   if (assertion.maxCalls !== undefined && calls.length > assertion.maxCalls) {
     failures.push({

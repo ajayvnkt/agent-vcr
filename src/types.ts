@@ -13,7 +13,11 @@ export type TraceFileV1 = {
   version: 1
   scenario?: string
   calls: ToolCallRecord[]
+  plannerOutputs?: PlannerOutput[]
 }
+
+/** Emitted application planner text, not private model reasoning. */
+export type PlannerOutput = { atStep: number; atCall: number; callCount: number; text: string }
 
 export type ChatMessage =
   | { role: 'system'; content: string }
@@ -35,6 +39,7 @@ export type ToolCallSpec = {
 export type AssistantTurn = {
   content: string | null
   tool_calls?: ToolCallSpec[]
+  planner_output?: string
 }
 
 export type CompareMode = 'exact' | 'subsequence'
