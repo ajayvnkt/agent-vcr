@@ -1,7 +1,7 @@
 /** Strict counterfactual tool-return replay. No live tool executor exists on this interface. */
 import type { ChatMessage, ToolCallRecord } from './types.js'
 import type { LlmComplete } from './loop.js'
-import { callIdentity, exactSnapshot, parseToolArguments, sameIdentity } from './replay-identity.js'
+import { callIdentity, exactSnapshot, parseToolArguments, sameIdentity, snapshotAssistantTurn } from './replay-identity.js'
 
 export type RecordedToolReturn = ToolCallRecord & { result: unknown }
 export type CounterfactualOptions = {
@@ -51,7 +51,7 @@ export async function counterfactualReplay(options: CounterfactualOptions): Prom
     let response
     try {
       modelCalls++
-      response = exactSnapshot(await options.model.complete(structuredClone(messages)), ['tool_calls', 'planner_output'])
+      response = snapshotAssistantTurn(await options.model.complete(structuredClone(messages)))
       if (!response || (response.content !== null && typeof response.content !== 'string') ||
         (response.tool_calls !== undefined && !Array.isArray(response.tool_calls))) {
         return finish('INCONCLUSIVE', 'malformed model response')

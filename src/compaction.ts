@@ -10,7 +10,7 @@
  * so downstream tooling can attribute behaviour changes to a specific cut.
  */
 
-import { exactSnapshot, parseToolArguments as parseArgumentText } from './replay-identity.js'
+import { exactSnapshot, parseToolArguments as parseArgumentText, snapshotAssistantTurn } from './replay-identity.js'
 import type { ChatMessage, ToolCallRecord, ToolCallSpec, PlannerOutput } from './types.js'
 import type { LlmComplete, ToolExecutorFn } from './loop.js'
 
@@ -182,7 +182,7 @@ export async function collectWithCompaction(
       messages = rebuilt
     }
 
-    const assistant = exactSnapshot(await options.llm.complete(messages), ['tool_calls', 'planner_output'])
+    const assistant = snapshotAssistantTurn(await options.llm.complete(messages))
     const plan = assistant.planner_output ?? (options.capturePlannerOutput ? assistant.content : null)
     if (plan !== null && plan !== undefined) {
       if (typeof plan !== 'string') throw new Error('planner output must be literal text')

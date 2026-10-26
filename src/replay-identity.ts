@@ -109,6 +109,30 @@ export function parseToolArguments(text: string): Record<string, unknown> {
   return parseExactArguments(text)
 }
 
+const RECORDED_TURN_FIELDS = ['content', 'tool_calls', 'planner_output'] as const
+
+/**
+ * Snapshot the fields of an assistant turn that the library records: content,
+ * tool_calls and planner_output. Other keys a callback returns (usage, response
+ * ids, undefined metadata) are ignored rather than refused. The turn itself must
+ * still be a plain object, and each recorded field must be an own, enumerable
+ * data property (no getters, no inherited or hidden fields). A recorded field
+ * set to undefined is treated as absent, so a turn without content is still
+ * reported as malformed by callers that require it.
+ */
+export function snapshotAssistantTurn<T>(turn: T): T {
+  if (!turn || typeof turn !== 'object' || Array.isArray(turn) ||
+      Object.getPrototypeOf(turn) !== Object.prototype) return exactSnapshot(turn)
+  const picked: Record<string, unknown> = {}
+  for (const key of RECORDED_TURN_FIELDS) {
+    const descriptor = Object.getOwnPropertyDescriptor(turn, key)
+    if (!descriptor) continue
+    if (!descriptor.enumerable || !('value' in descriptor)) throw new Error('JSON data properties required')
+    if (descriptor.value !== undefined) picked[key] = descriptor.value
+  }
+  return exactSnapshot(picked) as T
+}
+
 export function callIdentity(call: { name: string; args: Record<string, unknown> }, position: number) {
   const snapshot = exactSnapshot(call)
   if (typeof snapshot.name !== 'string' || !snapshot.name.trim() || !snapshot.args ||

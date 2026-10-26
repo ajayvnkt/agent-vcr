@@ -5,7 +5,7 @@ import type { CompactedRun } from './compaction.js'
 
 const integer = z.number().int().nonnegative()
 const text = z.string().min(1)
-const call = z.object({ name: text, args: z.record(z.unknown()) }).strict()
+const call = z.object({ name: text, args: z.record(z.string(), z.unknown()) }).strict()
 const source = z.discriminatedUnion('kind', [
   z.object({ id: text, kind: z.literal('user'), text: z.string(), availableBefore: integer }).strict(),
   z.object({ id: text, kind: z.literal('state'),

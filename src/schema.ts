@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const recordSchema = z.object({
   name: z.string().min(1),
-  args: z.record(z.unknown()).default({}),
+  args: z.record(z.string(), z.unknown()).default({}),
 })
 
 export const plannerOutputSchema = z.object({

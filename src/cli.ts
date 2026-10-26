@@ -9,12 +9,14 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { z } from 'zod'
 import { parseTraceFileV1, safeParseTraceFileV1 } from './schema.js'
 import { compareTraces } from './diff.js'
 import { callsEqual } from './normalize.js'
 import { recordTrace } from './record.js'
 import { initProject } from './init.js'
 import { saveTraceFile } from './trace-io.js'
+import { parseExactArguments } from './replay-identity.js'
 import type { CompareMode, ToolCallRecord } from './types.js'
 import type { RecordConfig } from './record.js'
 
@@ -77,10 +79,11 @@ ${c.bold('Examples:')}
 
 // ── Commands ──────────────────────────────────────────────────────────────────
 
-async function loadJsonPath(path: string): Promise<unknown> {
+/** Trace files use the library's exact parser, so the CLI agrees with loadTraceFile. */
+async function loadJsonPath(path: string, exact = false): Promise<unknown> {
   const raw = await readFile(path, 'utf8')
   try {
-    return JSON.parse(raw) as unknown
+    return exact ? parseExactArguments(raw) : JSON.parse(raw) as unknown
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     throw new Error(`Invalid JSON in ${path}: ${msg}`)
@@ -88,7 +91,7 @@ async function loadJsonPath(path: string): Promise<unknown> {
 }
 
 async function cmdValidate(path: string): Promise<void> {
-  const data = await loadJsonPath(path)
+  const data = await loadJsonPath(path, true)
   const parsed = parseTraceFileV1(data)
   const n = parsed.calls.length
   log(
@@ -101,21 +104,21 @@ async function cmdDiff(
   actualPath: string,
   mode: CompareMode,
 ): Promise<void> {
-  const expRaw = await loadJsonPath(expectedPath)
-  const actRaw = await loadJsonPath(actualPath)
+  const expRaw = await loadJsonPath(expectedPath, true)
+  const actRaw = await loadJsonPath(actualPath, true)
 
   const expParsed = safeParseTraceFileV1(expRaw)
   const actParsed = safeParseTraceFileV1(actRaw)
 
   if (!expParsed.success) {
     log(`${c.red('✖')} Invalid expected trace: ${expectedPath}`)
-    log(JSON.stringify(expParsed.error.flatten(), null, 2))
+    log(JSON.stringify(z.flattenError(expParsed.error), null, 2))
     process.exitCode = 2
     return
   }
   if (!actParsed.success) {
     log(`${c.red('✖')} Invalid actual trace: ${actualPath}`)
-    log(JSON.stringify(actParsed.error.flatten(), null, 2))
+    log(JSON.stringify(z.flattenError(actParsed.error), null, 2))
     process.exitCode = 2
     return
   }

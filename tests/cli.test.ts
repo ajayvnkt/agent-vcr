@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const cli = join(root, 'dist', 'cli.js')
@@ -35,5 +37,21 @@ describe('cli', () => {
     expect(r.status).toBe(1)
     expect(r.stderr).toMatch(/subsequence/i)
     expect(r.stderr).toMatch(/expected →|actual →/i)
+  })
+
+  it('validate and diff refuse traces that loadTraceFile would refuse', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vcr-cli-'))
+    const lossy = join(dir, 'lossy.json')
+    writeFileSync(lossy, '{"version":1,"calls":[{"name":"get_user","args":{"user_id":9007199254740993}}]}')
+    const dupe = join(dir, 'dupe.json')
+    writeFileSync(dupe, '{"version":1,"calls":[{"name":"refund","args":{"amount":1,"amount":2}}]}')
+    for (const file of [lossy, dupe]) {
+      const v = spawnSync(process.execPath, [cli, 'validate', file], { encoding: 'utf8' })
+      expect(v.status).not.toBe(0)
+      expect(v.stderr).toMatch(/Invalid JSON/)
+      const d = spawnSync(process.execPath, [cli, 'diff', golden, file], { encoding: 'utf8' })
+      expect(d.status).not.toBe(0)
+      expect(d.stderr).toMatch(/Invalid JSON/)
+    }
   })
 })
