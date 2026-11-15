@@ -38,7 +38,7 @@ function showCall(call: ToolCallRecord | null): string {
  */
 function cell(text: string, max = 600): string {
   // Every line terminator CommonMark or a browser recognises, including a lone CR.
-  const flat = text.replace(/[\r\n\u0085\u2028\u2029]+/g, ' ').replace(/`/g, "'").replace(/\|/g, '\\|')
+  const flat = text.replace(/[\r\n\u0085\u2028\u2029]+/g, ' ').replace(/`/g, "'").replace(/\\+(?=\|)/g, '').replace(/\|/g, '\\|')
   return flat.length > max ? `${flat.slice(0, max - 3)}...` : flat
 }
 

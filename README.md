@@ -292,6 +292,7 @@ npm run build && npm run example:all
 | [ticket-escalation](examples/ticket-escalation/) | VIP customer 4-step escalation | Long tool chains |
 | [compaction-stability](examples/compaction-stability/) | Support agent that outgrows its context | Run-to-run variance + summary ablation |
 | [reliability-suite](examples/reliability-suite/) | Four agents, four failure shapes | Policy assertions, variants, multi-turn, gated judge |
+| [check-suite](examples/check-suite/) | A suite judged by `agent-vcr check`, with one run read from OpenTelemetry spans | The deterministic gate and its report |
 | [live-behavior](examples/live-behavior/) | A prompt edit that moves the model's decisions | Sorting live runs into golden, approved, new path, regression |
 
 **Run individually:**
@@ -392,6 +393,41 @@ With no judge configured the suite is fully deterministic and free — that's wh
 Read the last line again: **6 out of 6 runs passed, and the gate failed it.** Every run reached the right answer by a different route. A pass rate reports that identically to a genuinely reliable agent, and it is one prompt tweak from an incident.
 
 `requireStable` is the knob no other harness gives you. `formatMarkdown()` renders the whole thing as a PR comment with collapsible detail; `formatJson()` for dashboards.
+
+---
+
+## Check: a gate for runs you already have
+
+`agent-vcr check` judges recorded runs against your policy and golden traces. It makes no model calls and needs no API key. The runs can be Agent VCR trace files or OpenTelemetry spans exported by an agent in any framework or language.
+
+```bash
+npx agent-vcr check --suite agent-vcr.suite.json --out-dir report
+```
+
+```json
+{
+  "version": 1,
+  "policy": "policy.json",
+  "scenarios": [
+    { "name": "refund happy path", "trace": "traces/refund.run.json", "golden": "traces/refund.expected.json" },
+    { "name": "python agent", "otel": "traces/spans.json" }
+  ]
+}
+```
+
+It writes `results.json` (with a sha256 of every input), a markdown summary and a self-contained HTML report. Anything it cannot evaluate fails the check instead of passing: a missing file, a misspelt rule, a scenario with nothing to check against.
+
+As a GitHub Action:
+
+```yaml
+- uses: actions/checkout@v5
+- uses: ajayvnkt/agent-vcr@main
+  with:
+    suite: agent-vcr.suite.json
+    comment: true # needs pull-requests: write
+```
+
+Details, statuses and exit codes are in [docs/check.md](docs/check.md).
 
 ---
 
@@ -757,6 +793,9 @@ agent-vcr fingerprint --config <record.config.json> [--policy <policy.json>] [--
 # Convert exported OpenTelemetry GenAI spans to a trace file
 agent-vcr from-otel <spans.json> [--out <trace.json>] [--trace-id <id>] [--scenario <name>] [--names-only]
 
+# Judge recorded runs against policy and golden traces; no model calls (see docs/check.md)
+agent-vcr check --suite <suite.json> [--out-dir <dir>] [--strict]
+
 # Approve a new path
 agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [--note <text>] [--policy <policy.json>]
 ```
@@ -766,7 +805,7 @@ agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Trace mismatch (`diff`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`); no tool spans found (`from-otel`) |
+| `1` | Trace mismatch (`diff`); failed or unevaluable scenario (`check`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`); no tool spans found (`from-otel`) |
 | `2` | Usage error, invalid JSON, or schema error |
 
 **Example diff output (mismatch):**
@@ -855,7 +894,7 @@ Full trace comparison:
 
 Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and runnable examples under `examples/`.
 
-Not yet released to npm: live behaviour checks (`behavior`, `fingerprint`, `accept`), the LangGraph.js adapter with scripted replay, and the OpenTelemetry adapter (`from-otel`).
+Not yet released to npm: `check` and the GitHub Action, live behaviour checks (`behavior`, `fingerprint`, `accept`), the LangGraph.js adapter with scripted replay, and the OpenTelemetry adapter (`from-otel`).
 
 Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; OpenInference span support; a native Python client; HTML diff report.
 

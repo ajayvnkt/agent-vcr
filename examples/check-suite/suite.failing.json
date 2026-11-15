@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "name": "refund agent (regressed)",
+  "policy": "policy.json",
+  "scenarios": [
+    {
+      "name": "refund happy path",
+      "trace": "traces/refund.run.json",
+      "golden": "traces/refund.expected.json"
+    },
+    {
+      "name": "refund without verification",
+      "trace": "traces/unverified.run.json",
+      "golden": "traces/refund.expected.json"
+    }
+  ]
+}

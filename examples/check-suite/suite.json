@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "name": "refund agent",
+  "policy": "policy.json",
+  "scenarios": [
+    {
+      "name": "refund happy path",
+      "trace": "traces/refund.run.json",
+      "golden": "traces/refund.expected.json"
+    },
+    {
+      "name": "python agent via OpenTelemetry",
+      "otel": "traces/python-agent.spans.json",
+      "golden": "traces/refund.expected.json"
+    }
+  ]
+}
