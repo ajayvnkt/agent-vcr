@@ -32,6 +32,10 @@
     "./adapters/langchain": {
       "types": "./dist/adapters/langchain.d.ts",
       "import": "./dist/adapters/langchain.js"
+    },
+    "./adapters/langgraph": {
+      "types": "./dist/adapters/langgraph.d.ts",
+      "import": "./dist/adapters/langgraph.js"
     }
   },
   "scripts": {
@@ -46,12 +50,14 @@
     "example:rag-validation": "node examples/rag-validation/run.mjs",
     "example:ticket-escalation": "node examples/ticket-escalation/run.mjs",
     "example:compaction-stability": "node examples/compaction-stability/run.mjs",
-    "example:all": "npm run example:minimal && npm run example:email-router && npm run example:financial-transfer && npm run example:rag-validation && npm run example:ticket-escalation && npm run example:compaction-stability && npm run example:reliability-suite",
+    "example:all": "npm run example:minimal && npm run example:email-router && npm run example:financial-transfer && npm run example:rag-validation && npm run example:ticket-escalation && npm run example:compaction-stability && npm run example:reliability-suite && npm run example:live-behavior",
     "prepublishOnly": "npm run build",
     "example:reliability-suite": "node examples/reliability-suite/run.mjs",
     "live:policy": "node scripts/live/policy-check.mjs",
     "live:ablation": "node scripts/live/ablation.mjs",
-    "live:goal-drift": "node scripts/live/goal-drift.mjs"
+    "live:goal-drift": "node scripts/live/goal-drift.mjs",
+    "example:live-behavior": "node examples/live-behavior/run.mjs",
+    "live:behavior": "node scripts/live/behavior.mjs"
   },
   "keywords": [
     "llm",
@@ -81,7 +87,9 @@
     "context-compaction",
     "long-horizon",
     "flaky-tests",
-    "typescript"
+    "typescript",
+    "langgraph",
+    "behavior-regression"
   ],
   "license": "MIT",
   "publishConfig": {
@@ -118,7 +126,8 @@
     "@anthropic-ai/sdk": ">=0.20.0",
     "@langchain/core": ">=0.2.0",
     "ai": ">=3.0.0",
-    "openai": ">=4.0.0"
+    "openai": ">=4.0.0",
+    "@langchain/langgraph": ">=0.2.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
@@ -131,6 +140,9 @@
       "optional": true
     },
     "openai": {
+      "optional": true
+    },
+    "@langchain/langgraph": {
       "optional": true
     }
   }

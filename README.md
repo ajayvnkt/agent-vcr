@@ -306,6 +306,7 @@ npm run build && npm run example:all
 | [ticket-escalation](examples/ticket-escalation/) | VIP customer 4-step escalation | Long tool chains |
 | [compaction-stability](examples/compaction-stability/) | Support agent that outgrows its context | Run-to-run variance + summary ablation |
 | [reliability-suite](examples/reliability-suite/) | Four agents, four failure shapes | Policy assertions, variants, multi-turn, gated judge |
+| [live-behavior](examples/live-behavior/) | A prompt edit that moves the model's decisions | Sorting live runs into golden, approved, new path, regression |
 
 **Run individually:**
 
@@ -316,6 +317,7 @@ npm run example:rag-validation
 npm run example:ticket-escalation
 npm run example:compaction-stability # no API key needed
 npm run example:reliability-suite    # no API key needed
+npm run example:live-behavior        # no API key needed
 ```
 
 ---
@@ -404,6 +406,48 @@ With no judge configured the suite is fully deterministic and free — that's wh
 Read the last line again: **6 out of 6 runs passed, and the gate failed it.** Every run reached the right answer by a different route. A pass rate reports that identically to a genuinely reliable agent, and it is one prompt tweak from an incident.
 
 `requireStable` is the knob no other harness gives you. `formatMarkdown()` renders the whole thing as a PR comment with collapsible detail; `formatJson()` for dashboards.
+
+---
+
+## Live Behaviour Checks
+
+Replay is deterministic and free, so it runs on every pull request. It tests the wiring around a model. It cannot tell you whether a new prompt, model or tool schema makes the model decide differently, because replay never asks the model.
+
+Live behaviour checks are the optional second layer. Run the agent against a real model a few times, when an input that decides behaviour has changed, and sort every run against what the suite already knows:
+
+| Outcome | Meaning |
+|---|---|
+| `golden` | Matches the golden trace |
+| `accepted` | Matches an approved alternative path |
+| `unreviewed` | A new path that breaks no stated policy; a person approves or rejects it |
+| `regression` | Breaks a stated policy |
+| `error` | The run did not finish |
+
+```ts
+import { collectToolCalls, runBehaviorCheck, formatBehaviorMarkdown } from 'agent-vcr'
+
+const report = await runBehaviorCheck({
+  runs: 5,
+  baseline: {
+    golden: goldenTrace.calls,
+    variants: approved.variants,
+    policy: { requires: [['refund_order', 'verify_order']] },
+  },
+  collect: () => collectToolCalls({ system, user, llm, executeTool }), // one live run
+})
+
+report.verdict // 'unchanged' | 'review' | 'regression' | 'inconclusive'
+```
+
+A committed fingerprint of the prompt, model, tools and policy decides when the live runs are worth paying for, and `--markdown` writes the pull-request comment: the first point where behaviour left the golden trace, the rule that was broken, and the command to approve a new path.
+
+```bash
+npx agent-vcr behavior --config record.config.json --golden traces/refund.expected.json \
+  --policy policy.json --fingerprint traces/refund.fingerprint.json --if-changed \
+  --runs 5 --markdown behavior.md
+```
+
+A run that errors or is cut off at `maxSteps` makes the check exit 1, never 0. A new path that breaks no policy is reported for review and is not called harmless. In CI, compare against the fingerprint from the base branch, not the pull request's own copy. Full details, the policy file format and a GitHub Actions workflow are in [docs/live-behavior.md](docs/live-behavior.md).
 
 ---
 
@@ -578,6 +622,28 @@ const chat = new ChatOpenAI({ model: 'gpt-4o-mini' })
 const llm = fromLangChain(chat.bindTools([lookupOrderTool, refundOrderTool]))
 ```
 
+### LangGraph.js
+
+A LangGraph graph owns its own tool loop, so this adapter runs your compiled graph and reads the tool-call trace out of the message state. The trace is an ordinary `ToolCallRecord[]`, so assertions, approved paths and live behaviour checks apply unchanged.
+
+```ts
+import { assertTrace, runBehaviorCheck } from 'agent-vcr'
+import { collectFromLangGraph } from 'agent-vcr/adapters/langgraph'
+
+const { calls } = await collectFromLangGraph(graph, {
+  messages: [{ role: 'user', content: 'Refund order 4471' }],
+})
+assertTrace(calls, { requires: [['refund_order', 'verify_order']] })
+
+// or as the live run of a behaviour check
+const report = await runBehaviorCheck({
+  baseline: { golden, policy },
+  collect: async () => (await collectFromLangGraph(graph, input)).calls,
+})
+```
+
+It records the tool calls the model requested, in message order. It uses structural typing and adds no dependency. Deterministic replay of a LangGraph graph is not provided: the graph drives its own model, so `ScriptedLlm` does not apply.
+
 ### Any OpenAI-compatible API
 
 ```bash
@@ -650,6 +716,19 @@ agent-vcr validate <trace.json>
 
 # Diff expected vs actual (exits 1 on mismatch)
 agent-vcr diff <expected.json> <actual.json> [--mode exact|subsequence]
+
+# Run the agent live N times and classify each run (see docs/live-behavior.md)
+agent-vcr behavior --config <record.config.json> --golden <trace.json> [--policy <policy.json>]
+                   [--variants <variants.json>] [--runs <n>] [--mode exact|subsequence]
+                   [--model <name>] [--base-url <url>] [--fingerprint <file> --if-changed]
+                   [--strict] [--markdown <file>] [--json <file>] [--out-dir <dir>]
+
+# Hash the inputs that decide behaviour; --check exits 1 when they changed
+agent-vcr fingerprint --config <record.config.json> [--policy <policy.json>] [--golden <trace.json>]
+                      [--variants <variants.json>] [--out <file> | --check <file>]
+
+# Approve a new path
+agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [--note <text>] [--policy <policy.json>]
 ```
 
 **Exit codes:**
@@ -657,7 +736,7 @@ agent-vcr diff <expected.json> <actual.json> [--mode exact|subsequence]
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Trace mismatch (`diff`) |
+| `1` | Trace mismatch (`diff`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`) |
 | `2` | Usage error, invalid JSON, or schema error |
 
 **Example diff output (mismatch):**
@@ -695,6 +774,10 @@ Full trace comparison:
 | `initProject(options?)` | Scaffold traces/ dir + sample test |
 | `parseTraceFileV1(raw)` | Parse raw JSON (throws on invalid) |
 | `safeParseTraceFileV1(raw)` | Parse raw JSON (returns `{ success, error }`) |
+| `runBehaviorCheck(options)` | Run the agent live N times and classify every run |
+| `classifyBehavior(runs, baseline)` / `classifyRun(calls, baseline)` | Classify runs you already have |
+| `formatBehaviorMarkdown(report, options?)` | Pull-request comment for a behaviour report |
+| `fingerprintInputs(inputs)` / `changedComponents(a, b)` | Detect which behaviour-deciding input changed |
 
 ---
 
@@ -732,9 +815,11 @@ Full trace comparison:
 
 ## Roadmap
 
-Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and five runnable examples under `examples/`.
+Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and runnable examples under `examples/`.
 
-Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; Python client; LangGraph adapter; HTML diff report.
+Not yet released to npm: live behaviour checks (`behavior`, `fingerprint`, `accept`) and the LangGraph.js adapter.
+
+Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; Python client; deterministic replay for LangGraph graphs; HTML diff report.
 
 ---
 

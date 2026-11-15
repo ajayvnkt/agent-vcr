@@ -6,6 +6,9 @@
  * agent-vcr diff <expected.json> <actual.json> [--mode exact|subsequence]
  * agent-vcr record --config <record.config.json> --out <trace.json> [--model <model>] [--base-url <url>]
  * agent-vcr init [--dir <path>] [--skip-existing]
+ * agent-vcr behavior --config <record.config.json> --golden <trace.json> [options]
+ * agent-vcr fingerprint --config <record.config.json> [--out <file> | --check <file>]
+ * agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name>
  */
 
 import { readFile } from 'node:fs/promises'
@@ -19,6 +22,7 @@ import { saveTraceFile } from './trace-io.js'
 import { parseExactArguments } from './replay-identity.js'
 import type { CompareMode, ToolCallRecord } from './types.js'
 import type { RecordConfig } from './record.js'
+import { cmdAccept, cmdBehavior, cmdFingerprint, UsageError } from './cli-behavior.js'
 
 // ── ANSI color helpers (respects NO_COLOR and non-TTY) ───────────────────────
 const isColor = process.env['NO_COLOR'] === undefined && process.stderr.isTTY
@@ -45,12 +49,33 @@ ${c.bold('Usage:')}
   ${c.cyan('agent-vcr diff')}     ${c.yellow('<expected.json> <actual.json>')} [--mode exact|subsequence]
   ${c.cyan('agent-vcr record')}   --config ${c.yellow('<record.config.json>')} --out ${c.yellow('<trace.json>')} [--model <model>] [--base-url <url>]
   ${c.cyan('agent-vcr init')}     [--dir <path>] [--skip-existing]
+  ${c.cyan('agent-vcr behavior')} --config ${c.yellow('<record.config.json>')} --golden ${c.yellow('<trace.json>')} [options]
+  ${c.cyan('agent-vcr fingerprint')} --config ${c.yellow('<record.config.json>')} [--policy <file>] [--golden <file>] [--variants <file>] [--out <file> | --check <file>]
+  ${c.cyan('agent-vcr accept')}   --variants ${c.yellow('<variants.json>')} --trace ${c.yellow('<trace.json>')} --name <name> [--note <text>] [--policy <file>]
 
 ${c.bold('Commands:')}
   ${c.cyan('validate')}   Check a trace JSON matches schema v1
   ${c.cyan('diff')}       Compare expected vs actual traces; exits 1 on mismatch
   ${c.cyan('record')}     Call a real LLM, capture tool calls, save as golden trace
   ${c.cyan('init')}       Scaffold Agent VCR in a new project (traces/ + sample test)
+  ${c.cyan('behavior')}   Run the agent live N times; sort runs into golden, approved, new path, regression
+  ${c.cyan('fingerprint')} Hash prompt, model, tools and policy; detect when live runs are worth making
+  ${c.cyan('accept')}     Approve a new path by adding it to the approved-paths file
+
+${c.bold('Behavior options:')}
+  --golden <path>      Golden trace to compare against (required)
+  --variants <path>    Approved-paths file
+  --policy <path>      Policy file (JSON TraceAssertion); needed to detect regressions
+  --runs <n>           Live runs to make (default: 5)
+  --mode <mode>        exact (default) or subsequence
+  --model <name>       Override model from config
+  --base-url <url>     Override base URL from config
+  --fingerprint <path> Fingerprint to compare with; reports which inputs changed
+  --if-changed         Skip live runs when the fingerprint is unchanged
+  --strict             Also exit 1 when a new, unapproved path appears
+  --markdown <path>    Write a pull-request comment
+  --json <path>        Write the full report as JSON
+  --out-dir <path>     Write each new or regressed path as a trace file
 
 ${c.bold('Diff options:')}
   --mode exact         Same length + each call matches (default)
@@ -65,7 +90,7 @@ ${c.bold('Record options:')}
 
 ${c.bold('Exit codes:')}
   0   Success
-  1   Trace mismatch (diff)
+  1   Trace mismatch (diff); regression or unfinished check (behavior); inputs changed (fingerprint --check)
   2   Usage error, invalid JSON, or schema error
 
 ${c.bold('Examples:')}
@@ -330,6 +355,18 @@ async function main(argv: string[]): Promise<void> {
 
     if (cmd === 'init') {
       await cmdInit(args.slice(1))
+      return
+    }
+
+    if (cmd === 'behavior' || cmd === 'fingerprint' || cmd === 'accept') {
+      const run = cmd === 'behavior' ? cmdBehavior : cmd === 'fingerprint' ? cmdFingerprint : cmdAccept
+      try {
+        process.exitCode = await run(args.slice(1), log)
+      } catch (e) {
+        if (!(e instanceof UsageError)) throw e
+        log(`${c.red('✖')} ${e.message}`)
+        process.exitCode = 2
+      }
       return
     }
 
