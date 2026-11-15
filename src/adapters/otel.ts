@@ -314,3 +314,15 @@ export function parseOtelExport(text: string): unknown {
       })
   }
 }
+
+/** A hint only: chat telemetry cannot establish executed tool calls. */
+export function noToolSpansHint(input: unknown): string {
+  const spans = flatten(input)
+  const chats = spans.filter((span) => {
+    const operation = span.attributes['gen_ai.operation.name']
+    return typeof operation === 'string' && operation.toLowerCase() === 'chat'
+  }).length
+  return (chats > 0 ? `Found ${chats} chat span(s), but no executed-tool evidence. ` : '') +
+    'Instrument the tool executor with execute_tool spans, or import a separately verified audit-log projection. ' +
+    'Do not convert model-proposed calls into execution evidence; --names-only cannot recover missing tool spans.'
+}

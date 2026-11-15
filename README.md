@@ -989,3 +989,22 @@ transformation; this assertion cannot discover unrecorded context changes.
 
 Tests cover both valid evidence and defects. Existing summary contracts and versioned trace
 schemas remain compatible; these assertions accept separate evidence records.
+
+
+### Chat-only OpenTelemetry exports
+
+`from-otel` requires observed tool execution, not just model/chat spans. When a
+chat-only export is rejected, the CLI now explains the missing instrumentation;
+`--names-only` relaxes missing arguments, not missing execution evidence.
+
+Instrument the executor with `gen_ai.operation.name=execute_tool`, a tool name,
+arguments, ordering and trace identity. If an existing system only records a
+trusted audit log, create an explicit projection into the normal version-1 trace
+format: one run, actual execution order, exact tool names and parsed argument
+objects. Verify row completeness and preserve failed versus successful actions
+in your domain checker. Do not derive execution from a planner's proposed calls
+or treat a boolean false verification result as successful verification. A
+name/order-only projection cannot establish authorization or entity ownership.
+An empty projection requires an explicit expected empty golden; it is not a
+policy pass by default. Audit projections are application-specific and must carry
+their own provenance; the importer does not manufacture missing spans.

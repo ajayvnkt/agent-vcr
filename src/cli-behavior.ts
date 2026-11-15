@@ -20,7 +20,7 @@ import { addVariant } from './variants.js'
 import { runBehaviorCheck } from './behavior.js'
 import { formatBehaviorConsole, formatBehaviorMarkdown } from './behavior-report.js'
 import { changedComponents, fingerprintInputs } from './fingerprint.js'
-import { parseOtelExport, traceFromOtelSpans } from './adapters/otel.js'
+import { noToolSpansHint, parseOtelExport, traceFromOtelSpans } from './adapters/otel.js'
 import { runCheck } from './check.js'
 import { scaffoldCheck } from './scaffold.js'
 import { formatCheckHtml, formatCheckMarkdown } from './check-report.js'
@@ -289,6 +289,7 @@ export async function cmdFromOtel(args: string[], log: (s: string) => void): Pro
   })
   if (result.calls.length === 0) {
     log(`no execute_tool spans found in ${positional}. The file must contain OpenTelemetry GenAI spans with gen_ai.operation.name = execute_tool.`)
+    log(noToolSpansHint(input))
     return EXIT.changed
   }
   const scenario = str(flags, '--scenario')
