@@ -1,19 +1,5 @@
 # Agent VCR
 
-[Recorded planner replay](docs/planner-replay.md) captures application plans and
-checks a deterministic router with zero additional model calls. Missing planner
-evidence reports `UNKNOWN`.
-
-The additive [generic assurance APIs](docs/generic-assurance.md) include strict counterfactual
-tool-return replay and token-attributed context diffs. Divergent tool paths remain INCONCLUSIVE;
-token deltas are measurements, not cost-saving claims. Existing APIs remain unchanged.
-
-**Evidence integrity inside your existing evaluator.** The local build now includes a
-[Promptfoo JavaScript assertion adapter](docs/promptfoo.md) for argument provenance and
-information survival across context transformations. Missing or unexercised evidence cannot
-pass. The compaction collector can capture complete before/after context explicitly.
-This adapter is unreleased; use the documented local-build path.
-
 <p align="center">
   <strong>Snapshot tests for LLM tool calls.<br>Record once. Catch regressions forever. Zero live-LLM cost in CI once golden traces are committed.</strong>
 </p>
@@ -306,6 +292,7 @@ npm run build && npm run example:all
 | [ticket-escalation](examples/ticket-escalation/) | VIP customer 4-step escalation | Long tool chains |
 | [compaction-stability](examples/compaction-stability/) | Support agent that outgrows its context | Run-to-run variance + summary ablation |
 | [reliability-suite](examples/reliability-suite/) | Four agents, four failure shapes | Policy assertions, variants, multi-turn, gated judge |
+| [live-behavior](examples/live-behavior/) | A prompt edit that moves the model's decisions | Sorting live runs into golden, approved, new path, regression |
 
 **Run individually:**
 
@@ -316,6 +303,7 @@ npm run example:rag-validation
 npm run example:ticket-escalation
 npm run example:compaction-stability # no API key needed
 npm run example:reliability-suite    # no API key needed
+npm run example:live-behavior        # no API key needed
 ```
 
 ---
@@ -404,6 +392,48 @@ With no judge configured the suite is fully deterministic and free — that's wh
 Read the last line again: **6 out of 6 runs passed, and the gate failed it.** Every run reached the right answer by a different route. A pass rate reports that identically to a genuinely reliable agent, and it is one prompt tweak from an incident.
 
 `requireStable` is the knob no other harness gives you. `formatMarkdown()` renders the whole thing as a PR comment with collapsible detail; `formatJson()` for dashboards.
+
+---
+
+## Live Behaviour Checks
+
+Replay is deterministic and free, so it runs on every pull request. It tests the wiring around a model. It cannot tell you whether a new prompt, model or tool schema makes the model decide differently, because replay never asks the model.
+
+Live behaviour checks are the optional second layer. Run the agent against a real model a few times, when an input that decides behaviour has changed, and sort every run against what the suite already knows:
+
+| Outcome | Meaning |
+|---|---|
+| `golden` | Matches the golden trace |
+| `accepted` | Matches an approved alternative path |
+| `unreviewed` | A new path that breaks no stated policy; a person approves or rejects it |
+| `regression` | Breaks a stated policy |
+| `error` | The run did not finish |
+
+```ts
+import { collectToolCalls, runBehaviorCheck, formatBehaviorMarkdown } from 'agent-vcr'
+
+const report = await runBehaviorCheck({
+  runs: 5,
+  baseline: {
+    golden: goldenTrace.calls,
+    variants: approved.variants,
+    policy: { requires: [['refund_order', 'verify_order']] },
+  },
+  collect: () => collectToolCalls({ system, user, llm, executeTool }), // one live run
+})
+
+report.verdict // 'unchanged' | 'review' | 'regression' | 'inconclusive'
+```
+
+A committed fingerprint of the prompt, model, tools and policy decides when the live runs are worth paying for, and `--markdown` writes the pull-request comment: the first point where behaviour left the golden trace, the rule that was broken, and the command to approve a new path.
+
+```bash
+npx agent-vcr behavior --config record.config.json --golden traces/refund.expected.json \
+  --policy policy.json --fingerprint traces/refund.fingerprint.json --if-changed \
+  --runs 5 --markdown behavior.md
+```
+
+A run that errors or is cut off at `maxSteps` makes the check exit 1, never 0. A new path that breaks no policy is reported for review and is not called harmless. In CI, compare against the fingerprint from the base branch, not the pull request's own copy. Full details, the policy file format and a GitHub Actions workflow are in [docs/live-behavior.md](docs/live-behavior.md).
 
 ---
 
@@ -578,6 +608,69 @@ const chat = new ChatOpenAI({ model: 'gpt-4o-mini' })
 const llm = fromLangChain(chat.bindTools([lookupOrderTool, refundOrderTool]))
 ```
 
+### LangGraph.js
+
+A LangGraph graph owns its own tool loop, so this adapter runs your compiled graph and reads the tool-call trace out of the message state. The trace is an ordinary `ToolCallRecord[]`, so assertions, approved paths and live behaviour checks apply unchanged.
+
+```ts
+import { assertTrace, runBehaviorCheck } from 'agent-vcr'
+import { collectFromLangGraph } from 'agent-vcr/adapters/langgraph'
+
+const { calls } = await collectFromLangGraph(graph, {
+  messages: [{ role: 'user', content: 'Refund order 4471' }],
+})
+assertTrace(calls, { requires: [['refund_order', 'verify_order']] })
+
+// or as the live run of a behaviour check
+const report = await runBehaviorCheck({
+  baseline: { golden, policy },
+  collect: async () => (await collectFromLangGraph(graph, input)).calls,
+})
+```
+
+It records the tool calls the model requested, in message order. It uses structural typing and adds no dependency.
+
+For deterministic replay, `scriptedGraphModel` stands in for the chat model in a graph you built yourself. The graph runs its real nodes and edges with no model call:
+
+```ts
+import { collectFromLangGraph, scriptedGraphModel } from 'agent-vcr/adapters/langgraph'
+
+const model = scriptedGraphModel(goldenTrace.calls).bindTools(tools) // one recorded call per turn
+const graph = buildGraph(model) // your own StateGraph, with the model injected
+const { state } = await collectFromLangGraph(graph, input)
+
+expect(model.remaining()).toBe(0) // the graph asked the model exactly as often as the recording
+// then check state.messages for what your tool nodes actually did
+```
+
+Be exact about what this proves. The requested calls are the script echoed back, so comparing them to the same recording always matches. A replay tests routing (the graph reaches the model the expected number of times; asking more often throws) and whatever you assert on the resulting state. A missing tool or a tool that throws shows up in the tool messages in `state`, not in the trace.
+
+It works where your node calls `model.invoke(...)`. Prebuilt agents that require a real chat model class will not accept it. A scripted model is single-use.
+
+### Any framework, any language: OpenTelemetry
+
+Most agent frameworks can export OpenTelemetry spans that follow the GenAI semantic conventions, where each tool execution is one `execute_tool` span. Agent VCR reads those spans, so an agent written in Python or any other language can be checked without a client library in that language. Export the spans to a file, then:
+
+```bash
+npx agent-vcr from-otel spans.json --out traces/run.actual.json
+npx agent-vcr diff traces/refund.expected.json traces/run.actual.json
+```
+
+```ts
+import { assertTrace } from 'agent-vcr'
+import { parseOtelExport, traceFromOtelSpans } from 'agent-vcr/adapters/otel'
+
+const { calls } = traceFromOtelSpans(parseOtelExport(fileText), { traceId })
+assertTrace(calls, { requires: [['refund_order', 'verify_order']] })
+```
+
+Three limits to know:
+
+- Many instrumentations leave tool arguments out unless content capture is switched on. `from-otel` refuses such a file unless you pass `--names-only`, which writes `{}` for the missing arguments. Such a trace supports name-and-order policy rules (`forbid`, `requires`, `ordering`, `sequence`) only: `diff` against a golden trace with arguments will fail, and an `absent` argument matcher would pass on it without meaning anything.
+- Call order comes from span start times. A file where a tool span has no readable start time is refused, as is one that mixes several traces; pass `--trace-id` to pick a run.
+- Spans record tool executions. A tool the model requested but the framework refused to run does not appear.
+- OpenTelemetry still marks the GenAI conventions as in development, and attribute names have changed between versions. The adapter reads `gen_ai.operation.name`, `gen_ai.tool.name` and `gen_ai.tool.call.arguments`. It has been tested against spans built to that specification, not yet against exports captured from each framework.
+
 ### Any OpenAI-compatible API
 
 ```bash
@@ -650,6 +743,22 @@ agent-vcr validate <trace.json>
 
 # Diff expected vs actual (exits 1 on mismatch)
 agent-vcr diff <expected.json> <actual.json> [--mode exact|subsequence]
+
+# Run the agent live N times and classify each run (see docs/live-behavior.md)
+agent-vcr behavior --config <record.config.json> --golden <trace.json> [--policy <policy.json>]
+                   [--variants <variants.json>] [--runs <n>] [--mode exact|subsequence]
+                   [--model <name>] [--base-url <url>] [--fingerprint <file> --if-changed]
+                   [--strict] [--markdown <file>] [--json <file>] [--out-dir <dir>]
+
+# Hash the inputs that decide behaviour; --check exits 1 when they changed
+agent-vcr fingerprint --config <record.config.json> [--policy <policy.json>] [--golden <trace.json>]
+                      [--variants <variants.json>] [--out <file> | --check <file>]
+
+# Convert exported OpenTelemetry GenAI spans to a trace file
+agent-vcr from-otel <spans.json> [--out <trace.json>] [--trace-id <id>] [--scenario <name>] [--names-only]
+
+# Approve a new path
+agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [--note <text>] [--policy <policy.json>]
 ```
 
 **Exit codes:**
@@ -657,7 +766,7 @@ agent-vcr diff <expected.json> <actual.json> [--mode exact|subsequence]
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Trace mismatch (`diff`) |
+| `1` | Trace mismatch (`diff`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`); no tool spans found (`from-otel`) |
 | `2` | Usage error, invalid JSON, or schema error |
 
 **Example diff output (mismatch):**
@@ -695,6 +804,10 @@ Full trace comparison:
 | `initProject(options?)` | Scaffold traces/ dir + sample test |
 | `parseTraceFileV1(raw)` | Parse raw JSON (throws on invalid) |
 | `safeParseTraceFileV1(raw)` | Parse raw JSON (returns `{ success, error }`) |
+| `runBehaviorCheck(options)` | Run the agent live N times and classify every run |
+| `classifyBehavior(runs, baseline)` / `classifyRun(calls, baseline)` | Classify runs you already have |
+| `formatBehaviorMarkdown(report, options?)` | Pull-request comment for a behaviour report |
+| `fingerprintInputs(inputs)` / `changedComponents(a, b)` | Detect which behaviour-deciding input changed |
 
 ---
 
@@ -730,11 +843,21 @@ Full trace comparison:
 
 ---
 
+## More capabilities
+
+- **[Recorded planner replay](docs/planner-replay.md)** captures application plans and checks a deterministic router with zero additional model calls. Missing planner evidence reports `UNKNOWN`.
+- **[Generic assurance APIs](docs/generic-assurance.md)** add strict counterfactual tool-return replay and token-attributed context diffs. Divergent tool paths remain inconclusive; token deltas are measurements, not cost-saving claims.
+- **[Promptfoo assertion adapter](docs/promptfoo.md)** checks argument provenance and information survival across context transformations inside an existing Promptfoo evaluator. Missing or unexercised evidence cannot pass. Not yet released to npm; the doc describes the local-build path.
+
+---
+
 ## Roadmap
 
-Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and five runnable examples under `examples/`.
+Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and runnable examples under `examples/`.
 
-Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; Python client; LangGraph adapter; HTML diff report.
+Not yet released to npm: live behaviour checks (`behavior`, `fingerprint`, `accept`), the LangGraph.js adapter with scripted replay, and the OpenTelemetry adapter (`from-otel`).
+
+Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; OpenInference span support; a native Python client; HTML diff report.
 
 ---
 

@@ -94,6 +94,12 @@ export type RecordConfig = {
   httpFetch?: typeof fetch
   /** The caller identifies emitted content as application planner output. */
   capturePlannerOutput?: boolean
+  /**
+   * Called when the loop stops at `maxSteps` while the model was still calling
+   * tools, so the returned trace is cut short. Without this the trace looks
+   * like a finished run.
+   */
+  onTruncated?: (maxSteps: number) => void
 }
 
 // ── Internal types ──────────────────────────────────────────────────────────
@@ -187,6 +193,8 @@ export async function recordTrace(config: RecordConfig): Promise<TraceFileV1> {
       messages.push({ role: 'tool', tool_call_id: tc.id, content: resultStr })
     }
   }
+
+  if (messages[messages.length - 1]?.role === 'tool') config.onTruncated?.(maxSteps)
 
   return {
     version: 1,

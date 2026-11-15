@@ -131,6 +131,33 @@ export { replayPlannerRouting } from './planner.js'
 export type { PlannerRoutingOptions } from './planner.js'
 export type { InitOptions, InitResult } from './init.js'
 
+// ── Live behaviour checks: the optional second layer ──────────────────────────
+export { classifyBehavior, classifyRun, describeBehavior, pathId, runBehaviorCheck } from './behavior.js'
+export type {
+  BehaviorBaseline,
+  BehaviorCheckOptions,
+  BehaviorClass,
+  BehaviorDivergence,
+  BehaviorPath,
+  BehaviorReport,
+  BehaviorRun,
+  BehaviorVerdict,
+  RunClassification,
+} from './behavior.js'
+export { BEHAVIOR_COMMENT_MARKER, formatBehaviorConsole, formatBehaviorMarkdown } from './behavior-report.js'
+export type { BehaviorMarkdownOptions } from './behavior-report.js'
+export { changedComponents, fingerprintInputs, parseFingerprint } from './fingerprint.js'
+export type { BehaviorFingerprintV1, BehaviorInputs } from './fingerprint.js'
+export {
+  loadFingerprintFile,
+  loadPolicyFile,
+  loadVariantFile,
+  parsePolicyFile,
+  parseVariantFile,
+  saveFingerprintFile,
+  saveVariantFile,
+} from './behavior-io.js'
+
 export { assertGrounding, assertTransformationSurvival } from './evidence.js'
 export { counterfactualReplay } from './counterfactual.js'
 export { diffContext } from './context-diff.js'

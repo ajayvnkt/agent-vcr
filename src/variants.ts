@@ -113,12 +113,15 @@ export function addVariant(
   name: string,
   options?: { mode?: CompareMode; note?: string },
 ): { variants: Variant[]; added: boolean; reason: string } {
-  const existing = matchVariants(candidate, variants.length ? variants : [], options)
-  if (variants.length > 0 && existing.matched) {
-    return {
-      variants,
-      added: false,
-      reason: `already covered by accepted path "${existing.variant}"`,
+  // An empty set has nothing to match against, and matchVariants refuses one.
+  if (variants.length > 0) {
+    const existing = matchVariants(candidate, variants, options)
+    if (existing.matched) {
+      return {
+        variants,
+        added: false,
+        reason: `already covered by accepted path "${existing.variant}"`,
+      }
     }
   }
   if (variants.some((v) => v.name === name)) {

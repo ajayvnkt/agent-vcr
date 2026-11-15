@@ -4,7 +4,7 @@ Everything in `tests/` runs against scripted agents. That proves the library's
 logic and nothing at all about how it behaves when a model is genuinely deciding
 what to call next.
 
-These three scripts close that gap. They drive a **real model** through a real
+These scripts close that gap. They drive a **real model** through a real
 tool loop, force real compactions, and check what comes out. They default to a
 local Ollama, so they cost nothing and need no API key.
 
@@ -30,6 +30,7 @@ LIVE_BASE=https://api.openai.com/v1 LIVE_MODEL=gpt-4o-mini LIVE_API_KEY=sk-... \
 | `policy-check.mjs` | `collectWithCompaction` with a real summarizer, `assertTrace` preconditions, `analyzeStability` across N runs |
 | `ablation.mjs` | `ablateSummary` against a live model — which facts in a real summary are load-bearing |
 | `goal-drift.mjs` | A reproduction of a specific failure the ablation run found |
+| `behavior.mjs` | `runBehaviorCheck` on the same agent under two system prompts: which runs match golden, take a new path, or break policy |
 
 ## What the ablation run found
 
