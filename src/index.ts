@@ -162,7 +162,9 @@ export {
 export { parseCheckSuite, runCheck } from './check.js'
 export type { CheckInput, CheckReport, CheckScenario, CheckScenarioResult, CheckStatus, CheckSuite, RunCheckOptions } from './check.js'
 export { CHECK_COMMENT_MARKER, formatCheckHtml, formatCheckMarkdown } from './check-report.js'
-export { policyHasRules } from './behavior.js'
+export { policyHasRules, rateInterval } from './behavior.js'
+export { buildStarterPolicy, scaffoldCheck, unexercisedRuleTools } from './scaffold.js'
+export type { ScaffoldOptions, ScaffoldResult, StarterPolicyOptions } from './scaffold.js'
 
 export { assertGrounding, assertTransformationSurvival } from './evidence.js'
 export { counterfactualReplay } from './counterfactual.js'

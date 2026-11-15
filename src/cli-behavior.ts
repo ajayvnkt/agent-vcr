@@ -22,6 +22,7 @@ import { formatBehaviorConsole, formatBehaviorMarkdown } from './behavior-report
 import { changedComponents, fingerprintInputs } from './fingerprint.js'
 import { parseOtelExport, traceFromOtelSpans } from './adapters/otel.js'
 import { runCheck } from './check.js'
+import { scaffoldCheck } from './scaffold.js'
 import { formatCheckHtml, formatCheckMarkdown } from './check-report.js'
 import type { BehaviorFingerprintV1 } from './fingerprint.js'
 import {
@@ -45,6 +46,8 @@ function parseFlags(args: string[], known: string[]): Flags {
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!
     if (!known.includes(a)) throw new UsageError(`unknown option "${a}"`)
+    // Keeping only the last value would silently drop a rule given as a second --require or --forbid.
+    if (flags.has(a)) throw new UsageError(`option "${a}" was given more than once. Give it once; list options take comma-separated values.`)
     if (BOOLEAN_FLAGS.has(a)) {
       flags.set(a, true)
       continue
@@ -200,6 +203,69 @@ export async function cmdCheck(args: string[], log: (s: string) => void): Promis
   if (report.verdict === 'fail') return EXIT.changed
   if (report.verdict === 'review' && flags.has('--strict')) return EXIT.changed
   return EXIT.ok
+}
+
+function parseCount(flags: Flags, name: string): number | undefined {
+  const text = str(flags, name)
+  if (text === undefined) return undefined
+  if (!/^[0-9]+$/.test(text) || !Number.isSafeInteger(Number(text))) {
+    throw new UsageError(`${name} must be a non-negative whole number, got "${text}"`)
+  }
+  return Number(text)
+}
+
+function parseList(text: string | undefined): string[] {
+  return text === undefined ? [] : text.split(',').map((s) => s.trim()).filter((s) => s !== '')
+}
+
+/** Scaffold a policy, a suite, a first run and a workflow, then run the check once. */
+export async function cmdInitCheck(args: string[], log: (s: string) => void): Promise<number> {
+  const flags = parseFlags(args, ['--dir', '--require', '--forbid', '--max-calls', '--max-per-tool', '--from', '--trace-id', '--names-only'])
+  const require = parseList(str(flags, '--require')).map((pair): [string, string] => {
+    const parts = pair.split(':').map((s) => s.trim())
+    if (parts.length !== 2 || parts[0] === '' || parts[1] === '') {
+      throw new UsageError(`--require takes <action>:<prerequisite> pairs, got "${pair}"`)
+    }
+    return [parts[0]!, parts[1]!]
+  })
+  if (flags.has('--from') === false && (flags.has('--trace-id') || flags.has('--names-only'))) {
+    throw new UsageError('init-check: --trace-id and --names-only apply to --from only')
+  }
+
+  let result
+  try {
+    result = await scaffoldCheck({
+      dir: str(flags, '--dir'),
+      require,
+      forbid: parseList(str(flags, '--forbid')),
+      maxCalls: parseCount(flags, '--max-calls'),
+      maxCallsPerTool: parseCount(flags, '--max-per-tool'),
+      from: str(flags, '--from'),
+      traceId: str(flags, '--trace-id'),
+      namesOnly: flags.has('--names-only'),
+    })
+  } catch (e) {
+    throw new UsageError(`init-check: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  for (const f of result.created) log(`  + ${f}`)
+  for (const f of result.skipped) log(`  ~ ${f} (already exists, left alone; make sure it runs this suite)`)
+  if (result.example) {
+    log('\nnote: the first scenario is a generated example. Replace traces/example.run.json with a real run,')
+    log('      or rerun in an empty directory with --from <trace.json | spans.json>.')
+  }
+  for (const tool of result.unexercised) {
+    log(`\nwarning: "${tool}" is named in a --require rule but never appears in this run. Check the spelling. If the action is misspelt the rule never applies; if the prerequisite is, the rule can never be satisfied.`)
+  }
+
+  log('\nFirst check:')
+  const report = await runCheck(result.suitePath, { tool: `agent-vcr@${await ownVersion()}` })
+  for (const s of report.scenarios) log(`  ${s.status.padEnd(6)} ${s.name}${s.status === 'pass' ? '' : `: ${s.reason}`}`)
+  log(`\nNext: commit these files, and run this whenever you add a run:\n  npx agent-vcr check --suite ${shellQuote(result.suitePath)}`)
+  if (str(flags, '--dir') !== undefined) {
+    log('note: GitHub only runs workflows from .github/workflows at the repository root, and the workflow\'s suite path is relative to that root. Move or adjust it if --dir is not the root.')
+  }
+  return report.verdict === 'fail' ? EXIT.changed : EXIT.ok
 }
 
 async function ownVersion(): Promise<string> {

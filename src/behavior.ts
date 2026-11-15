@@ -293,6 +293,37 @@ export function classifyBehavior(runs: BehaviorRun[], baseline: BehaviorBaseline
   return report
 }
 
+/**
+ * An approximate 95% interval for the true rate behind `k` events in `n` independent runs.
+ *
+ * Five clean runs do not show that an agent never misbehaves. They are
+ * consistent with it misbehaving in up to 45% of runs. Reporting the interval
+ * next to the count keeps a small batch from being read as proof.
+ *
+ * At the edges (k = 0 or k = n) it returns the exact one-sided 95% bound, so one
+ * end is 0 or 1 and the other is a bound, not half of a two-sided interval. In
+ * between it returns the two-sided Wilson score interval, which is approximate:
+ * for small n and rates near 0 or 1 its true coverage can fall to roughly 85%.
+ * Report it as approximate.
+ *
+ * It assumes the runs are independent and alike. Repeated runs of one scenario
+ * usually are, but a shared cache, a rate limit or a provider incident that
+ * touches several runs at once breaks that, and the interval is then too narrow.
+ */
+export function rateInterval(k: number, n: number): { low: number; high: number } {
+  if (!Number.isInteger(k) || !Number.isInteger(n) || n < 1 || k < 0 || k > n) {
+    throw new Error('rateInterval: need integers with 0 <= k <= n and n >= 1')
+  }
+  if (k === 0) return { low: 0, high: 1 - Math.pow(0.05, 1 / n) }
+  if (k === n) return { low: Math.pow(0.05, 1 / n), high: 1 }
+  const z = 1.959963984540054
+  const p = k / n
+  const denom = 1 + (z * z) / n
+  const centre = (p + (z * z) / (2 * n)) / denom
+  const half = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denom
+  return { low: Math.max(0, centre - half), high: Math.min(1, centre + half) }
+}
+
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }

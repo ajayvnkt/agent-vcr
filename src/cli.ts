@@ -22,7 +22,7 @@ import { saveTraceFile } from './trace-io.js'
 import { parseExactArguments } from './replay-identity.js'
 import type { CompareMode, ToolCallRecord } from './types.js'
 import type { RecordConfig } from './record.js'
-import { cmdAccept, cmdBehavior, cmdCheck, cmdFingerprint, cmdFromOtel, UsageError } from './cli-behavior.js'
+import { cmdAccept, cmdBehavior, cmdCheck, cmdFingerprint, cmdFromOtel, cmdInitCheck, UsageError } from './cli-behavior.js'
 
 // ── ANSI color helpers (respects NO_COLOR and non-TTY) ───────────────────────
 const isColor = process.env['NO_COLOR'] === undefined && process.stderr.isTTY
@@ -61,6 +61,7 @@ ${c.bold('Commands:')}
   ${c.cyan('behavior')}   Run the agent live N times; sort runs into golden, approved, new path, regression
   ${c.cyan('fingerprint')} Hash prompt, model, tools and policy; detect when live runs are worth making
   ${c.cyan('accept')}     Approve a new path by adding it to the approved-paths file
+  ${c.cyan('init-check')} Scaffold a policy, suite, first run and workflow: init-check [--require <action>:<prerequisite>,...] [--forbid <tool>,...] [--max-calls <n>] [--max-per-tool <n>] [--from <run file>] [--trace-id <id>] [--names-only] [--dir <path>]
   ${c.cyan('check')}      Judge recorded runs against policy and golden traces, no model calls: check --suite <suite.json> [--out-dir <dir>] [--strict]
   ${c.cyan('from-otel')}  Convert exported OpenTelemetry GenAI spans to a trace: from-otel <spans.json> [--out <file>] [--trace-id <id>] [--scenario <name>] [--names-only]
 
@@ -360,8 +361,8 @@ async function main(argv: string[]): Promise<void> {
       return
     }
 
-    if (cmd === 'behavior' || cmd === 'fingerprint' || cmd === 'accept' || cmd === 'from-otel' || cmd === 'check') {
-      const commands = { behavior: cmdBehavior, fingerprint: cmdFingerprint, accept: cmdAccept, 'from-otel': cmdFromOtel, check: cmdCheck }
+    if (cmd === 'behavior' || cmd === 'fingerprint' || cmd === 'accept' || cmd === 'from-otel' || cmd === 'check' || cmd === 'init-check') {
+      const commands = { behavior: cmdBehavior, fingerprint: cmdFingerprint, accept: cmdAccept, 'from-otel': cmdFromOtel, check: cmdCheck, 'init-check': cmdInitCheck }
       const run = commands[cmd]
       try {
         process.exitCode = await run(args.slice(1), log)

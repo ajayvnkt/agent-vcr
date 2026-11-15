@@ -184,6 +184,13 @@ new path. Tool names, arguments, policy messages and error text are rendered as
 code, flattened to one line and length-limited, so they cannot inject markdown
 or mentions into the comment.
 
+The comment ends with how much the batch can show. Five clean runs are
+consistent with a true policy-break rate of up to 45% (95% bound); the comment
+says so, and gives an approximate 95% interval when some runs did break policy.
+Raise `--runs` to narrow it. `rateInterval(k, n)` exposes the same calculation.
+The figures assume the runs are independent; a shared cache or a provider
+incident that touches several runs at once makes them too optimistic.
+
 A workflow that runs the check only when inputs changed and keeps one comment up
 to date:
 
