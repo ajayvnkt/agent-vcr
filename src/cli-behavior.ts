@@ -20,6 +20,7 @@ import { addVariant } from './variants.js'
 import { runBehaviorCheck } from './behavior.js'
 import { formatBehaviorConsole, formatBehaviorMarkdown } from './behavior-report.js'
 import { changedComponents, fingerprintInputs } from './fingerprint.js'
+import { parseOtelExport, traceFromOtelSpans } from './adapters/otel.js'
 import type { BehaviorFingerprintV1 } from './fingerprint.js'
 import {
   loadFingerprintFile,
@@ -34,7 +35,7 @@ export const EXIT = { ok: 0, changed: 1, usage: 2 } as const
 
 type Flags = Map<string, string | true>
 
-const BOOLEAN_FLAGS = new Set(['--if-changed', '--strict'])
+const BOOLEAN_FLAGS = new Set(['--if-changed', '--strict', '--names-only'])
 
 /** Parse `--flag value` and boolean flags. Unknown or valueless flags are a usage error. */
 function parseFlags(args: string[], known: string[]): Flags {
@@ -173,6 +174,35 @@ export async function cmdFingerprint(args: string[], log: (s: string) => void): 
     return EXIT.ok
   }
   process.stdout.write(`${JSON.stringify(current, null, 2)}\n`)
+  return EXIT.ok
+}
+
+/** Convert exported OpenTelemetry GenAI spans into a trace file any other command can use. */
+export async function cmdFromOtel(args: string[], log: (s: string) => void): Promise<number> {
+  const positional = args.length > 0 && !args[0]!.startsWith('--') ? args[0]! : undefined
+  if (positional === undefined) throw new UsageError('from-otel: missing <spans.json>')
+  const flags = parseFlags(args.slice(1), ['--out', '--trace-id', '--scenario', '--names-only'])
+  const input = parseOtelExport(await readFile(positional, 'utf8'))
+  const result = traceFromOtelSpans(input, {
+    traceId: str(flags, '--trace-id'),
+    missingArguments: flags.has('--names-only') ? 'empty' : 'error',
+  })
+  if (result.calls.length === 0) {
+    log(`no execute_tool spans found in ${positional}. The file must contain OpenTelemetry GenAI spans with gen_ai.operation.name = execute_tool.`)
+    return EXIT.changed
+  }
+  const scenario = str(flags, '--scenario')
+  const trace = { version: 1 as const, ...(scenario ? { scenario } : {}), calls: result.calls }
+  const outPath = str(flags, '--out')
+  if (outPath) {
+    await saveTraceFile(outPath, trace)
+    log(`wrote ${outPath} (${result.calls.length} call${result.calls.length === 1 ? '' : 's'})`)
+  } else {
+    process.stdout.write(`${JSON.stringify(trace, null, 2)}\n`)
+  }
+  if (result.withoutArguments > 0) {
+    log(`note: ${result.withoutArguments} call(s) had no recorded arguments and were written with {}. Only tool names and order can be checked.`)
+  }
   return EXIT.ok
 }
 

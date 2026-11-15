@@ -1,19 +1,5 @@
 # Agent VCR
 
-[Recorded planner replay](docs/planner-replay.md) captures application plans and
-checks a deterministic router with zero additional model calls. Missing planner
-evidence reports `UNKNOWN`.
-
-The additive [generic assurance APIs](docs/generic-assurance.md) include strict counterfactual
-tool-return replay and token-attributed context diffs. Divergent tool paths remain INCONCLUSIVE;
-token deltas are measurements, not cost-saving claims. Existing APIs remain unchanged.
-
-**Evidence integrity inside your existing evaluator.** The local build now includes a
-[Promptfoo JavaScript assertion adapter](docs/promptfoo.md) for argument provenance and
-information survival across context transformations. Missing or unexercised evidence cannot
-pass. The compaction collector can capture complete before/after context explicitly.
-This adapter is unreleased; use the documented local-build path.
-
 <p align="center">
   <strong>Snapshot tests for LLM tool calls.<br>Record once. Catch regressions forever. Zero live-LLM cost in CI once golden traces are committed.</strong>
 </p>
@@ -642,7 +628,48 @@ const report = await runBehaviorCheck({
 })
 ```
 
-It records the tool calls the model requested, in message order. It uses structural typing and adds no dependency. Deterministic replay of a LangGraph graph is not provided: the graph drives its own model, so `ScriptedLlm` does not apply.
+It records the tool calls the model requested, in message order. It uses structural typing and adds no dependency.
+
+For deterministic replay, `scriptedGraphModel` stands in for the chat model in a graph you built yourself. The graph runs its real nodes and edges with no model call:
+
+```ts
+import { collectFromLangGraph, scriptedGraphModel } from 'agent-vcr/adapters/langgraph'
+
+const model = scriptedGraphModel(goldenTrace.calls).bindTools(tools) // one recorded call per turn
+const graph = buildGraph(model) // your own StateGraph, with the model injected
+const { state } = await collectFromLangGraph(graph, input)
+
+expect(model.remaining()).toBe(0) // the graph asked the model exactly as often as the recording
+// then check state.messages for what your tool nodes actually did
+```
+
+Be exact about what this proves. The requested calls are the script echoed back, so comparing them to the same recording always matches. A replay tests routing (the graph reaches the model the expected number of times; asking more often throws) and whatever you assert on the resulting state. A missing tool or a tool that throws shows up in the tool messages in `state`, not in the trace.
+
+It works where your node calls `model.invoke(...)`. Prebuilt agents that require a real chat model class will not accept it. A scripted model is single-use.
+
+### Any framework, any language: OpenTelemetry
+
+Most agent frameworks can export OpenTelemetry spans that follow the GenAI semantic conventions, where each tool execution is one `execute_tool` span. Agent VCR reads those spans, so an agent written in Python or any other language can be checked without a client library in that language. Export the spans to a file, then:
+
+```bash
+npx agent-vcr from-otel spans.json --out traces/run.actual.json
+npx agent-vcr diff traces/refund.expected.json traces/run.actual.json
+```
+
+```ts
+import { assertTrace } from 'agent-vcr'
+import { parseOtelExport, traceFromOtelSpans } from 'agent-vcr/adapters/otel'
+
+const { calls } = traceFromOtelSpans(parseOtelExport(fileText), { traceId })
+assertTrace(calls, { requires: [['refund_order', 'verify_order']] })
+```
+
+Three limits to know:
+
+- Many instrumentations leave tool arguments out unless content capture is switched on. `from-otel` refuses such a file unless you pass `--names-only`, which writes `{}` for the missing arguments. Such a trace supports name-and-order policy rules (`forbid`, `requires`, `ordering`, `sequence`) only: `diff` against a golden trace with arguments will fail, and an `absent` argument matcher would pass on it without meaning anything.
+- Call order comes from span start times. A file where a tool span has no readable start time is refused, as is one that mixes several traces; pass `--trace-id` to pick a run.
+- Spans record tool executions. A tool the model requested but the framework refused to run does not appear.
+- OpenTelemetry still marks the GenAI conventions as in development, and attribute names have changed between versions. The adapter reads `gen_ai.operation.name`, `gen_ai.tool.name` and `gen_ai.tool.call.arguments`. It has been tested against spans built to that specification, not yet against exports captured from each framework.
 
 ### Any OpenAI-compatible API
 
@@ -727,6 +754,9 @@ agent-vcr behavior --config <record.config.json> --golden <trace.json> [--policy
 agent-vcr fingerprint --config <record.config.json> [--policy <policy.json>] [--golden <trace.json>]
                       [--variants <variants.json>] [--out <file> | --check <file>]
 
+# Convert exported OpenTelemetry GenAI spans to a trace file
+agent-vcr from-otel <spans.json> [--out <trace.json>] [--trace-id <id>] [--scenario <name>] [--names-only]
+
 # Approve a new path
 agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [--note <text>] [--policy <policy.json>]
 ```
@@ -736,7 +766,7 @@ agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Trace mismatch (`diff`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`) |
+| `1` | Trace mismatch (`diff`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`); no tool spans found (`from-otel`) |
 | `2` | Usage error, invalid JSON, or schema error |
 
 **Example diff output (mismatch):**
@@ -813,13 +843,21 @@ Full trace comparison:
 
 ---
 
+## More capabilities
+
+- **[Recorded planner replay](docs/planner-replay.md)** captures application plans and checks a deterministic router with zero additional model calls. Missing planner evidence reports `UNKNOWN`.
+- **[Generic assurance APIs](docs/generic-assurance.md)** add strict counterfactual tool-return replay and token-attributed context diffs. Divergent tool paths remain inconclusive; token deltas are measurements, not cost-saving claims.
+- **[Promptfoo assertion adapter](docs/promptfoo.md)** checks argument provenance and information survival across context transformations inside an existing Promptfoo evaluator. Missing or unexercised evidence cannot pass. Not yet released to npm; the doc describes the local-build path.
+
+---
+
 ## Roadmap
 
 Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and runnable examples under `examples/`.
 
-Not yet released to npm: live behaviour checks (`behavior`, `fingerprint`, `accept`) and the LangGraph.js adapter.
+Not yet released to npm: live behaviour checks (`behavior`, `fingerprint`, `accept`), the LangGraph.js adapter with scripted replay, and the OpenTelemetry adapter (`from-otel`).
 
-Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; Python client; deterministic replay for LangGraph graphs; HTML diff report.
+Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; OpenInference span support; a native Python client; HTML diff report.
 
 ---
 

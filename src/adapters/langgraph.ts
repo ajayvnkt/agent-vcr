@@ -196,6 +196,76 @@ export function traceFromMessages(
   return calls
 }
 
+/** A scripted assistant turn: the tool calls to request, or final text. */
+export type ScriptedGraphTurn = { calls: ToolCallRecord[]; content?: string } | { content: string }
+
+/**
+ * A stand-in chat model for deterministic replay of a graph you built yourself.
+ *
+ * Returns one scripted turn per `invoke`, ignoring its input, and `bindTools`
+ * returns the same model. Pass a recorded trace to replay it one call per turn,
+ * followed by a final text turn. The graph then runs its real nodes and edges
+ * with no model call.
+ *
+ * What a replay proves is narrow, and worth being exact about. The requested
+ * calls it yields are the script echoed back, so comparing them to the same
+ * recording always matches. What it does test:
+ *
+ * - routing: the graph reaches the model the expected number of times. Asking
+ *   more often than the script has turns throws; asking less often leaves turns
+ *   over, so assert `model.remaining() === 0` after the run.
+ * - everything downstream of the model: inspect the returned `state` for what
+ *   your tool nodes did. A missing tool, a tool that throws, or arguments that
+ *   fail a tool's schema show up in the tool messages there, not in the trace.
+ *
+ * It works where your own node calls `model.invoke(...)`. Prebuilt agents that
+ * require a real chat model class will not accept it. Turns are returned as
+ * plain message objects, which LangGraph's message state converts. A model is
+ * single-use: build a new one for each graph run.
+ */
+export function scriptedGraphModel(script: ToolCallRecord[] | ScriptedGraphTurn[], options?: { finalText?: string }): {
+  invoke(input?: unknown, config?: unknown): Promise<Record<string, unknown>>
+  bindTools(tools?: unknown): ReturnType<typeof scriptedGraphModel>
+  remaining(): number
+} {
+  const isRecord = (x: unknown): x is ToolCallRecord =>
+    isObject(x) && typeof x['name'] === 'string' && isObject(x['args']) && !('calls' in x) && !('content' in x)
+  const isTurn = (x: unknown): x is ScriptedGraphTurn =>
+    isObject(x) && !('args' in x) && (Array.isArray(x['calls']) ? x['calls'].every(isRecord) : typeof x['content'] === 'string')
+  // Copy, so a graph that mutates arguments cannot alter the recording it was built from.
+  const copy = (c: ToolCallRecord): ToolCallRecord => JSON.parse(JSON.stringify({ name: c.name, args: c.args })) as ToolCallRecord
+  let turns: ScriptedGraphTurn[]
+  if (script.every(isRecord)) {
+    turns = [...script.map((c) => ({ calls: [copy(c)] })), { content: options?.finalText ?? 'Done.' }]
+  } else if (script.every(isTurn)) {
+    turns = script.map((t) => ('calls' in t ? { calls: t.calls.map(copy), ...(t.content !== undefined ? { content: t.content } : {}) } : { content: t.content }))
+  } else {
+    throw new Error(
+      'agent-vcr/adapters/langgraph: scriptedGraphModel takes either tool calls ({ name, args }) or turns ({ calls } / { content }), not a mix',
+    )
+  }
+  let index = 0
+  const model = {
+    bindTools: () => model,
+    remaining: () => Math.max(0, turns.length - index),
+    invoke: async (): Promise<Record<string, unknown>> => {
+      if (index >= turns.length) {
+        throw new Error(`agent-vcr/adapters/langgraph: scripted model has no more turns (asked ${index + 1} times, have ${turns.length})`)
+      }
+      const turn = turns[index++]!
+      const calls = 'calls' in turn ? turn.calls : []
+      return {
+        role: 'assistant',
+        content: turn.content ?? '',
+        ...(calls.length > 0
+          ? { tool_calls: calls.map((c, i) => ({ name: c.name, args: c.args, id: `vcr_${index}_${i}`, type: 'tool_call' })) }
+          : {}),
+      }
+    },
+  }
+  return model
+}
+
 /** Tool calls stored outside `tool_calls`: OpenAI raw kwargs, legacy function_call, Anthropic content blocks. */
 function fallbackToolCalls(msg: Record<string, unknown>): unknown {
   const extra = msg['additional_kwargs']

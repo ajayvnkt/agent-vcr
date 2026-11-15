@@ -22,7 +22,7 @@ import { saveTraceFile } from './trace-io.js'
 import { parseExactArguments } from './replay-identity.js'
 import type { CompareMode, ToolCallRecord } from './types.js'
 import type { RecordConfig } from './record.js'
-import { cmdAccept, cmdBehavior, cmdFingerprint, UsageError } from './cli-behavior.js'
+import { cmdAccept, cmdBehavior, cmdFingerprint, cmdFromOtel, UsageError } from './cli-behavior.js'
 
 // ── ANSI color helpers (respects NO_COLOR and non-TTY) ───────────────────────
 const isColor = process.env['NO_COLOR'] === undefined && process.stderr.isTTY
@@ -61,6 +61,7 @@ ${c.bold('Commands:')}
   ${c.cyan('behavior')}   Run the agent live N times; sort runs into golden, approved, new path, regression
   ${c.cyan('fingerprint')} Hash prompt, model, tools and policy; detect when live runs are worth making
   ${c.cyan('accept')}     Approve a new path by adding it to the approved-paths file
+  ${c.cyan('from-otel')}  Convert exported OpenTelemetry GenAI spans to a trace: from-otel <spans.json> [--out <file>] [--trace-id <id>] [--scenario <name>] [--names-only]
 
 ${c.bold('Behavior options:')}
   --golden <path>      Golden trace to compare against (required)
@@ -358,8 +359,8 @@ async function main(argv: string[]): Promise<void> {
       return
     }
 
-    if (cmd === 'behavior' || cmd === 'fingerprint' || cmd === 'accept') {
-      const run = cmd === 'behavior' ? cmdBehavior : cmd === 'fingerprint' ? cmdFingerprint : cmdAccept
+    if (cmd === 'behavior' || cmd === 'fingerprint' || cmd === 'accept' || cmd === 'from-otel') {
+      const run = cmd === 'behavior' ? cmdBehavior : cmd === 'fingerprint' ? cmdFingerprint : cmd === 'accept' ? cmdAccept : cmdFromOtel
       try {
         process.exitCode = await run(args.slice(1), log)
       } catch (e) {

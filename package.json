@@ -36,6 +36,10 @@
     "./adapters/langgraph": {
       "types": "./dist/adapters/langgraph.d.ts",
       "import": "./dist/adapters/langgraph.js"
+    },
+    "./adapters/otel": {
+      "types": "./dist/adapters/otel.d.ts",
+      "import": "./dist/adapters/otel.js"
     }
   },
   "scripts": {
@@ -89,7 +93,11 @@
     "flaky-tests",
     "typescript",
     "langgraph",
-    "behavior-regression"
+    "behavior-regression",
+    "opentelemetry",
+    "crewai",
+    "pydantic-ai",
+    "openai-agents"
   ],
   "license": "MIT",
   "publishConfig": {
