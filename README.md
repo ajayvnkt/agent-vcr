@@ -1008,3 +1008,7 @@ name/order-only projection cannot establish authorization or entity ownership.
 An empty projection requires an explicit expected empty golden; it is not a
 policy pass by default. Audit projections are application-specific and must carry
 their own provenance; the importer does not manufacture missing spans.
+
+## Python client
+
+A source-installable [Python client](python/README.md) writes observed traces and invokes the existing offline check/OpenTelemetry engine. Node is required; no live calls or package release.

@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "agent-vcr-client"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "Offline Python client for the Agent VCR Node engine"
+license = {text = "MIT"}
+[tool.setuptools.packages.find]
+where = ["src"]

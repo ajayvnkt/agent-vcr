@@ -15,3 +15,8 @@ work/
 artifacts/
 outputs/
 .venv/
+
+# Python client build/test artifacts
+__pycache__/
+*.egg-info/
+python/build/

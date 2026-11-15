@@ -36,3 +36,21 @@ jobs:
 
       # Run all examples
       - run: npm run example:all
+
+  python-client:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: npm ci --include=dev
+      - run: npm run build
+      - run: python -m pip install ./python
+      - run: python -m unittest discover -s python/tests -v
