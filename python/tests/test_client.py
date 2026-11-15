@@ -52,10 +52,11 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(r.exit_code,code);self.assertEqual(r.report['verdict'],'review');self.assertFalse(r.passed)
 
     def test_missing_and_bad_engine(self):
+        suite=self.suite([('read',{})],golden=[('read',{})])
         for command in [('no-such-vcr-executable-xyz',),(sys.executable,'-c','pass')]:
-            with self.assertRaises(ClientError):Client(command).check(self.p/'missing.json')
+            with self.assertRaises(ClientError):Client(command).check(suite)
         with self.assertRaises(ClientError):self.client.check(self.p/'missing.json')
-        with self.assertRaises(ClientError):Client((sys.executable,'-c','import time;time.sleep(10)'),timeout=.03).check(self.p/'missing.json')
+        with self.assertRaises(ClientError):Client((sys.executable,'-c','import time;time.sleep(10)'),timeout=.03).check(suite)
 
     def test_arguments_reject(self):
         for arg in [{'a':float('nan')},{1:'bad'},{'a':object()}]:
