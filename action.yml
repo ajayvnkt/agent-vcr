@@ -14,7 +14,7 @@ inputs:
     required: false
     default: 'false'
   comment:
-    description: Post the result as a pull-request comment. Needs "pull-requests: write" permission.
+    description: 'Post the result as a pull-request comment. Needs the "pull-requests: write" permission.'
     required: false
     default: 'false'
   artifact-name:
