@@ -1,0 +1,1170 @@
+{
+  "version": 1,
+  "description": "Shared conformance cases for the agent-vcr policy file format. For each entry in \"cases\" an implementation must report exactly the listed failure kinds (compared as a sorted list). Every policy under \"invalid\" must be rejected when it is loaded.",
+  "cases": [
+    {
+      "name": "forbid: absent tool passes",
+      "policy": {
+        "forbid": [
+          "d"
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "forbid: present tool fails",
+      "policy": {
+        "forbid": [
+          "d"
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "d",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "forbidden"
+      ]
+    },
+    {
+      "name": "forbid: reported once per rule even if called twice",
+      "policy": {
+        "forbid": [
+          "d"
+        ]
+      },
+      "calls": [
+        {
+          "name": "d",
+          "args": {}
+        },
+        {
+          "name": "d",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "forbidden"
+      ]
+    },
+    {
+      "name": "requires: prerequisite first passes",
+      "policy": {
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "requires: prerequisite missing fails",
+      "policy": {
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "requires"
+      ]
+    },
+    {
+      "name": "requires: prerequisite only after fails",
+      "policy": {
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "requires"
+      ]
+    },
+    {
+      "name": "requires: dependent absent passes",
+      "policy": {
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "requires: only the first unsatisfied call is reported",
+      "policy": {
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "requires"
+      ]
+    },
+    {
+      "name": "ordering: both present in order passes",
+      "policy": {
+        "ordering": [
+          [
+            "a",
+            "b"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "c",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "ordering: reversed fails",
+      "policy": {
+        "ordering": [
+          [
+            "a",
+            "b"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "ordering"
+      ]
+    },
+    {
+      "name": "ordering: one absent passes",
+      "policy": {
+        "ordering": [
+          [
+            "a",
+            "b"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: present passes",
+      "policy": {
+        "includes": [
+          "a"
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: absent fails as missing",
+      "policy": {
+        "includes": [
+          "a"
+        ]
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "missing"
+      ]
+    },
+    {
+      "name": "includes: wrong argument fails as args",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": 1
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 2
+          }
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: bare value means equals, key order ignored",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "o": {
+                "p": 1,
+                "q": 2
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "o": {
+              "q": 2,
+              "p": 1
+            }
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: contains matcher",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "contains": "ell"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": "hello"
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: matches matcher is unanchored regex",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "matches": "^h.l"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": "hello"
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: oneOf matcher fails outside the set",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "oneOf": [
+                  1,
+                  2
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 3
+          }
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: exists matcher fails when absent",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "exists": true
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: absent matcher fails when present",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "absent": true
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 1
+          }
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: any call satisfying the pattern is enough",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": 2
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 1
+          }
+        },
+        {
+          "name": "a",
+          "args": {
+            "x": 2
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "sequence: in order with gaps passes",
+      "policy": {
+        "sequence": [
+          "a",
+          "c"
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "c",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "sequence: out of order fails",
+      "policy": {
+        "sequence": [
+          "a",
+          "c"
+        ]
+      },
+      "calls": [
+        {
+          "name": "c",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "sequence"
+      ]
+    },
+    {
+      "name": "sequence: repeated element needs two calls",
+      "policy": {
+        "sequence": [
+          "a",
+          "a"
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "sequence"
+      ]
+    },
+    {
+      "name": "maxCalls: at the limit passes",
+      "policy": {
+        "maxCalls": 2
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "maxCalls: over the limit fails",
+      "policy": {
+        "maxCalls": 2
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "c",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "maxCalls"
+      ]
+    },
+    {
+      "name": "maxCalls: zero forbids any call",
+      "policy": {
+        "maxCalls": 0
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "maxCalls"
+      ]
+    },
+    {
+      "name": "maxCallsPerTool: over the limit fails once per tool",
+      "policy": {
+        "maxCallsPerTool": 1
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "maxCallsPerTool",
+        "maxCallsPerTool"
+      ]
+    },
+    {
+      "name": "empty trace satisfies forbid and requires",
+      "policy": {
+        "forbid": [
+          "d"
+        ],
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ]
+      },
+      "calls": [],
+      "kinds": []
+    },
+    {
+      "name": "several rules report every failure",
+      "policy": {
+        "forbid": [
+          "d"
+        ],
+        "requires": [
+          [
+            "b",
+            "a"
+          ]
+        ],
+        "maxCalls": 1
+      },
+      "calls": [
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "d",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "forbidden",
+        "maxCalls",
+        "requires"
+      ]
+    },
+    {
+      "name": "includes: contains on an absent argument fails",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "contains": "ell"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: matches on an absent argument fails, even for a pattern that fits the word undefined",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "matches": "undef"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: equals on an absent argument fails",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": 1
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: a null argument exists",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "exists": true
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": null
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: integer and float forms of a number are equal",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": 40
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 40.0
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: contains on a non-string looks at its JSON text",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "contains": "\"k\":1"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": {
+              "k": 1
+            }
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "sequence: argument patterns select which call counts",
+      "policy": {
+        "sequence": [
+          {
+            "name": "a",
+            "args": {
+              "x": 2
+            }
+          },
+          "b"
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 1
+          }
+        },
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {
+            "x": 2
+          }
+        }
+      ],
+      "kinds": [
+        "sequence"
+      ]
+    },
+    {
+      "name": "ordering: only first occurrences are compared",
+      "policy": {
+        "ordering": [
+          [
+            "a",
+            "b"
+          ]
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "b",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "maxCallsPerTool: at the limit passes",
+      "policy": {
+        "maxCallsPerTool": 2
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        },
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: an object with two keys is a literal value, not a matcher",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "equals": 1,
+                "note": "n"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 1
+          }
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: contains on a null argument fails",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "contains": "ul"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": null
+          }
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: matches on a null argument fails",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "matches": "nul"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": null
+          }
+        }
+      ],
+      "kinds": [
+        "args"
+      ]
+    },
+    {
+      "name": "includes: matches on a number looks at its JSON text",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "matches": "^4"
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {
+            "x": 40
+          }
+        }
+      ],
+      "kinds": []
+    },
+    {
+      "name": "includes: absent matcher passes when the argument is missing",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "absent": true
+              }
+            }
+          }
+        ]
+      },
+      "calls": [
+        {
+          "name": "a",
+          "args": {}
+        }
+      ],
+      "kinds": []
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown rule",
+      "policy": {
+        "forbidden": [
+          "x"
+        ]
+      }
+    },
+    {
+      "name": "no rules at all",
+      "policy": {}
+    },
+    {
+      "name": "only empty rule lists",
+      "policy": {
+        "forbid": [],
+        "requires": []
+      }
+    },
+    {
+      "name": "rule that needs run-time evidence",
+      "policy": {
+        "forbid": [
+          "x"
+        ],
+        "grounding": {}
+      }
+    },
+    {
+      "name": "unknown key inside a pattern",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "arg": {
+              "x": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "pattern args not an object",
+      "policy": {
+        "sequence": [
+          {
+            "name": "a",
+            "args": "x"
+          }
+        ]
+      }
+    },
+    {
+      "name": "requires pair with one element",
+      "policy": {
+        "requires": [
+          [
+            "a"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "forbid not a list",
+      "policy": {
+        "forbid": "a"
+      }
+    },
+    {
+      "name": "negative maxCalls",
+      "policy": {
+        "maxCalls": -1
+      }
+    },
+    {
+      "name": "invalid regular expression",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "matches": "("
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "exists false",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "exists": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "absent false",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "absent": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "matcher with wrong letter case",
+      "policy": {
+        "includes": [
+          {
+            "name": "a",
+            "args": {
+              "x": {
+                "Equals": 1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy is not an object",
+      "policy": [
+        "forbid"
+      ]
+    }
+  ]
+}

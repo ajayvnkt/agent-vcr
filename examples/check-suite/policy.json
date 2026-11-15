@@ -1,0 +1,12 @@
+{
+  "requires": [
+    [
+      "refund_order",
+      "verify_order"
+    ]
+  ],
+  "forbid": [
+    "delete_account"
+  ],
+  "maxCallsPerTool": 3
+}

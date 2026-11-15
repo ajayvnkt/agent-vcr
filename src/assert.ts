@@ -121,10 +121,15 @@ export function checkArg(
       : `arg "${key}": expected one of ${str(m.oneOf)}, got ${str(actual)}`
   }
   if ('contains' in m) {
+    // An absent argument contains nothing. Without this guard the check threw on undefined.
+    if (actual === undefined || actual === null) return `arg "${key}": expected to contain "${m.contains}", but it is ${actual === null ? 'null' : 'absent'}`
     const s = typeof actual === 'string' ? actual : stableStringify(actual)
     return s.includes(m.contains) ? null : `arg "${key}": expected to contain "${m.contains}"`
   }
   // matches
+  // An absent argument matches nothing. Without this guard it was tested as the text "undefined".
+  // null gets the same treatment, or it would be tested as the text "null".
+  if (actual === undefined || actual === null) return `arg "${key}": expected to match /${String(m.matches)}/, but it is ${actual === null ? 'null' : 'absent'}`
   const s = typeof actual === 'string' ? actual : stableStringify(actual)
   let re: RegExp
   try {
@@ -136,6 +141,8 @@ export function checkArg(
 }
 
 function str(v: unknown): string {
+  // stableStringify(undefined) is undefined, not a string; an absent argument must not crash the message.
+  if (v === undefined) return 'undefined'
   const s = stableStringify(v)
   return s.length > 120 ? `${s.slice(0, 117)}...` : s
 }
@@ -144,12 +151,17 @@ function patternName(p: ToolPattern): string {
   return typeof p === 'string' ? p : p.name
 }
 
+/** An argument the call itself carries. Inherited names such as `toString` or `constructor` are not arguments. */
+function ownArg(call: ToolCallRecord, key: string): unknown {
+  return Object.prototype.hasOwnProperty.call(call.args, key) ? call.args[key] : undefined
+}
+
 /** Does one recorded call satisfy one pattern? */
 export function callMatches(call: ToolCallRecord, pattern: ToolPattern): boolean {
   if (call.name !== patternName(pattern)) return false
   if (typeof pattern === 'string' || !pattern.args) return true
   for (const [k, matcher] of Object.entries(pattern.args)) {
-    if (checkArg(k, call.args[k], matcher) !== null) return false
+    if (checkArg(k, ownArg(call, k), matcher) !== null) return false
   }
   return true
 }
@@ -159,7 +171,7 @@ function argFailures(call: ToolCallRecord, pattern: ToolPattern): string[] {
   if (typeof pattern === 'string' || !pattern.args) return []
   const out: string[] = []
   for (const [k, matcher] of Object.entries(pattern.args)) {
-    const r = checkArg(k, call.args[k], matcher)
+    const r = checkArg(k, ownArg(call, k), matcher)
     if (r !== null) out.push(r)
   }
   return out

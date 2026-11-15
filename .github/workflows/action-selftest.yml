@@ -1,0 +1,79 @@
+name: Action self-test
+
+# Runs the repository's own GitHub Action (action.yml) the way a user would,
+# once on a passing suite and once on a suite that must fail.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read # to list this run's artifacts
+
+jobs:
+  passing-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        uses: ./
+        with:
+          suite: examples/check-suite/suite.json
+          artifact-name: selftest-passing
+      - name: Verdict must be pass, and the report must exist
+        env:
+          VERDICT: ${{ steps.check.outputs.verdict }}
+          HAS_REPORT: ${{ steps.check.outputs.has-report }}
+          REPORT_DIR: ${{ steps.check.outputs.report-dir }}
+        run: |
+          test "$VERDICT" = "pass"
+          test "$HAS_REPORT" = "true"
+          test -s "$REPORT_DIR/report.html"
+      # Proves the upload step really ran: the run must now list an artifact with this name.
+      - name: The report artifact must exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          count=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == "selftest-passing")] | length')
+          test "$count" = "1"
+
+  failing-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          suite: examples/check-suite/suite.failing.json
+          artifact-name: selftest-failing
+      - name: The action must have failed, with verdict fail
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+          VERDICT: ${{ steps.check.outputs.verdict }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test "$VERDICT" = "fail"
+
+  missing-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          suite: examples/check-suite/does-not-exist.json
+          artifact-name: ''
+      - name: An unreadable suite must fail, never pass
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+          VERDICT: ${{ steps.check.outputs.verdict }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test "$VERDICT" = "fail"

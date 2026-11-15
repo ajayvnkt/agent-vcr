@@ -21,6 +21,8 @@ import { runBehaviorCheck } from './behavior.js'
 import { formatBehaviorConsole, formatBehaviorMarkdown } from './behavior-report.js'
 import { changedComponents, fingerprintInputs } from './fingerprint.js'
 import { parseOtelExport, traceFromOtelSpans } from './adapters/otel.js'
+import { runCheck } from './check.js'
+import { formatCheckHtml, formatCheckMarkdown } from './check-report.js'
 import type { BehaviorFingerprintV1 } from './fingerprint.js'
 import {
   loadFingerprintFile,
@@ -175,6 +177,38 @@ export async function cmdFingerprint(args: string[], log: (s: string) => void): 
   }
   process.stdout.write(`${JSON.stringify(current, null, 2)}\n`)
   return EXIT.ok
+}
+
+/** Evaluate recorded runs against policy and golden traces; write a report bundle. No model calls. */
+export async function cmdCheck(args: string[], log: (s: string) => void): Promise<number> {
+  const flags = parseFlags(args, ['--suite', '--out-dir', '--strict'])
+  const suitePath = need(flags, '--suite', 'check')
+  const report = await runCheck(suitePath, { tool: `agent-vcr@${await ownVersion()}` })
+
+  for (const s of report.scenarios) log(`  ${s.status.padEnd(6)} ${s.name}${s.status === 'pass' ? '' : `: ${s.reason}`}`)
+  const c = report.counts
+  log(`\n${report.verdict.toUpperCase()}: ${c.pass} passed, ${c.review} to review, ${c.fail} failed, ${c.error} could not be evaluated`)
+
+  const outDir = str(flags, '--out-dir')
+  if (outDir) {
+    await mkdir(outDir, { recursive: true })
+    await writeFile(join(outDir, 'results.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+    await writeFile(join(outDir, 'report.md'), `${formatCheckMarkdown(report)}\n`, 'utf8')
+    await writeFile(join(outDir, 'report.html'), formatCheckHtml(report), 'utf8')
+    log(`wrote ${join(outDir, 'results.json')}, report.md, report.html`)
+  }
+  if (report.verdict === 'fail') return EXIT.changed
+  if (report.verdict === 'review' && flags.has('--strict')) return EXIT.changed
+  return EXIT.ok
+}
+
+async function ownVersion(): Promise<string> {
+  try {
+    const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version?: unknown }
+    return typeof pkg.version === 'string' ? pkg.version : 'unknown'
+  } catch {
+    return 'unknown'
+  }
 }
 
 /** Convert exported OpenTelemetry GenAI spans into a trace file any other command can use. */

@@ -139,6 +139,10 @@ export function parsePolicyFile(data: unknown, where = 'policy file'): TraceAsse
         if (keys.length === 1 && keys[0] === 'contains' && typeof matcher['contains'] !== 'string') {
           throw new Error(`${at}: arg "${arg}": "contains" must be a string`)
         }
+        if (keys.length === 1 && (keys[0] === 'exists' || keys[0] === 'absent') && matcher[keys[0]] !== true) {
+          // { "exists": false } reads as "must not be present" but would be treated as { "exists": true }.
+          throw new Error(`${at}: arg "${arg}": "${keys[0]}" must be true. Use "${keys[0] === 'exists' ? 'absent' : 'exists'}": true for the opposite.`)
+        }
         if (keys.length === 1 && keys[0] === 'oneOf' && !Array.isArray(matcher['oneOf'])) {
           throw new Error(`${at}: arg "${arg}": "oneOf" must be an array`)
         }

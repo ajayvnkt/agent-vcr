@@ -158,6 +158,12 @@ export {
   saveVariantFile,
 } from './behavior-io.js'
 
+// ── check: the deterministic gate over recorded runs ──────────────────────────
+export { parseCheckSuite, runCheck } from './check.js'
+export type { CheckInput, CheckReport, CheckScenario, CheckScenarioResult, CheckStatus, CheckSuite, RunCheckOptions } from './check.js'
+export { CHECK_COMMENT_MARKER, formatCheckHtml, formatCheckMarkdown } from './check-report.js'
+export { policyHasRules } from './behavior.js'
+
 export { assertGrounding, assertTransformationSurvival } from './evidence.js'
 export { counterfactualReplay } from './counterfactual.js'
 export { diffContext } from './context-diff.js'

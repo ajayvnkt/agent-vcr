@@ -1,0 +1,122 @@
+name: Agent VCR check
+description: Judge recorded agent runs against policy and golden traces. No model calls, no API keys.
+author: ajayvnkt
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  suite:
+    description: Path to the suite file, relative to the repository root.
+    required: true
+  strict:
+    description: Also fail when a run takes a path nobody has approved.
+    required: false
+    default: 'false'
+  comment:
+    description: 'Post the result as a pull-request comment. Needs the "pull-requests: write" permission.'
+    required: false
+    default: 'false'
+  artifact-name:
+    description: Name of the uploaded report artifact. Leave empty to skip the upload.
+    required: false
+    default: agent-vcr-report
+  github-token:
+    description: Token used to post the comment.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  verdict:
+    description: pass, review or fail.
+    value: ${{ steps.check.outputs.verdict }}
+  has-report:
+    description: "true when the report files were written."
+    value: ${{ steps.check.outputs.has-report }}
+  report-dir:
+    description: Directory holding results.json, report.md and report.html.
+    value: ${{ steps.check.outputs.report-dir }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+
+    # The action runs the CLI from its own checkout, so it needs no published release.
+    - name: Build Agent VCR
+      shell: bash
+      run: |
+        cd "$GITHUB_ACTION_PATH"
+        npm ci --include=dev --ignore-scripts --no-audit --no-fund
+        npm run build
+
+    # Inputs reach the script as environment variables, never as inline text,
+    # so a suite path cannot inject shell commands.
+    - name: Run checks
+      id: check
+      shell: bash
+      env:
+        AVCR_SUITE: ${{ inputs.suite }}
+        AVCR_STRICT: ${{ inputs.strict }}
+      run: |
+        AVCR_CLI="$GITHUB_ACTION_PATH/dist/cli.js"
+        out="$RUNNER_TEMP/agent-vcr-report"
+        rm -rf "$out"
+        args=(check --suite "$AVCR_SUITE" --out-dir "$out")
+        case "$AVCR_STRICT" in true|True|TRUE) args+=(--strict) ;; esac
+        set +e
+        node "$AVCR_CLI" "${args[@]}"
+        code=$?
+        set -e
+        echo "report-dir=$out" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        if [ -f "$out/results.json" ]; then
+          echo "has-report=true" >> "$GITHUB_OUTPUT"
+          verdict=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).verdict)' "$out/results.json")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
+        else
+          # No report means the suite itself could not be read. That is a failure, not a pass.
+          echo "verdict=fail" >> "$GITHUB_OUTPUT"
+          echo "### ❌ Agent VCR could not read the suite" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    - name: Upload report
+      if: always() && inputs.artifact-name != '' && steps.check.outputs.has-report == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/agent-vcr-report
+
+    - name: Comment on the pull request
+      if: always() && inputs.comment == 'true' && github.event_name == 'pull_request' && steps.check.outputs.verdict != ''
+      shell: bash
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
+        AVCR_PR: ${{ github.event.pull_request.number }}
+        AVCR_REPORT: ${{ steps.check.outputs.report-dir }}/report.md
+      run: |
+        [ -f "$AVCR_REPORT" ] || exit 0
+        # Update this action's own comment, found by its marker. Editing "the last comment by this
+        # account" would overwrite another workflow's comment, since they all post as the same bot.
+        id=$(gh api "repos/$GH_REPO/issues/$AVCR_PR/comments" --paginate \
+          --jq '.[] | select(.body | startswith("<!-- agent-vcr:check -->")) | .id' | tail -n 1)
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$GH_REPO/issues/comments/$id" -F "body=@$AVCR_REPORT" > /dev/null
+        else
+          gh pr comment "$AVCR_PR" --body-file "$AVCR_REPORT"
+        fi
+
+    - name: Fail on a failed check
+      if: always()
+      shell: bash
+      env:
+        AVCR_CODE: ${{ steps.check.outputs.exit-code }}
+      run: |
+        # An empty exit code means the check step never finished.
+        if [ -z "$AVCR_CODE" ]; then exit 1; fi
+        exit "$AVCR_CODE"

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "scenario": "refund",
+  "calls": [
+    {
+      "name": "lookup_order",
+      "args": {
+        "orderId": "4471"
+      }
+    },
+    {
+      "name": "refund_order",
+      "args": {
+        "orderId": "4471",
+        "amount": 40
+      }
+    }
+  ]
+}
