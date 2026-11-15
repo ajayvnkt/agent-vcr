@@ -158,7 +158,12 @@ describe('OpenTelemetry adapter', () => {
     expect(spawnSync(process.execPath, [cli, 'validate', out], { encoding: 'utf8' }).status).toBe(0)
     const empty = join(dir, 'empty.json')
     writeFileSync(empty, JSON.stringify(otlp([chatSpan])))
-    expect(spawnSync(process.execPath, [cli, 'from-otel', empty], { encoding: 'utf8' }).status).toBe(1)
+    const rejected = spawnSync(process.execPath, [cli, 'from-otel', empty, '--names-only'], { encoding: 'utf8' })
+    expect(rejected.status).toBe(1)
+    expect(rejected.stderr).toMatch(/chat span\(s\).*no executed-tool evidence/)
+    expect(rejected.stderr).toMatch(/Instrument the tool executor/)
+    expect(rejected.stderr).toMatch(/--names-only cannot recover/)
+    expect(rejected.stdout).toBe('')
   })
 })
 
