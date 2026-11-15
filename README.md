@@ -400,6 +400,12 @@ Read the last line again: **6 out of 6 runs passed, and the gate failed it.** Ev
 
 `agent-vcr check` judges recorded runs against your policy and golden traces. It makes no model calls and needs no API key. The runs can be Agent VCR trace files or OpenTelemetry spans exported by an agent in any framework or language.
 
+Start with one command. It writes a policy from the rules you name, a suite, a first run and a GitHub Actions workflow, then runs the check:
+
+```bash
+npx agent-vcr init-check --require refund_order:verify_order --forbid delete_account --from spans.json
+```
+
 ```bash
 npx agent-vcr check --suite agent-vcr.suite.json --out-dir report
 ```
@@ -793,6 +799,10 @@ agent-vcr fingerprint --config <record.config.json> [--policy <policy.json>] [--
 # Convert exported OpenTelemetry GenAI spans to a trace file
 agent-vcr from-otel <spans.json> [--out <trace.json>] [--trace-id <id>] [--scenario <name>] [--names-only]
 
+# Scaffold a policy, suite, first run and workflow, then run the check once
+agent-vcr init-check [--require <action>:<prerequisite>,...] [--forbid <tool>,...] [--max-calls <n>] [--max-per-tool <n>]
+                     [--from <trace.json | spans.json>] [--trace-id <id>] [--names-only] [--dir <path>]
+
 # Judge recorded runs against policy and golden traces; no model calls (see docs/check.md)
 agent-vcr check --suite <suite.json> [--out-dir <dir>] [--strict]
 
@@ -805,7 +815,7 @@ agent-vcr accept --variants <variants.json> --trace <trace.json> --name <name> [
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Trace mismatch (`diff`); failed or unevaluable scenario (`check`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`); no tool spans found (`from-otel`) |
+| `1` | Trace mismatch (`diff`); failed or unevaluable scenario (`check`, and the first check run by `init-check`); regression or unfinished check (`behavior`); inputs changed (`fingerprint --check`); path breaks policy (`accept`); no tool spans found (`from-otel`) |
 | `2` | Usage error, invalid JSON, or schema error |
 
 **Example diff output (mismatch):**
@@ -894,7 +904,7 @@ Full trace comparison:
 
 Current release: trace schema v1, `compareTraces` (`exact` / `subsequence`), `ScriptedLlm`, `collectToolCalls`, CLI (`validate`, `diff`, `record`, `init`), adapters (OpenAI, Anthropic, Vercel AI, LangChain), and runnable examples under `examples/`.
 
-Not yet released to npm: `check` and the GitHub Action, live behaviour checks (`behavior`, `fingerprint`, `accept`), the LangGraph.js adapter with scripted replay, and the OpenTelemetry adapter (`from-otel`).
+Not yet released to npm: `init-check`, `check` and the GitHub Action, live behaviour checks (`behavior`, `fingerprint`, `accept`), the LangGraph.js adapter with scripted replay, and the OpenTelemetry adapter (`from-otel`).
 
 Planned: arg redaction for secrets in traces; CLI flags `--forbidden-tools` / `--budget`; OpenInference span support; a native Python client; HTML diff report.
 

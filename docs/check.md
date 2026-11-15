@@ -9,6 +9,68 @@ OpenTelemetry spans from an agent in any framework or language, or written by
 your own test harness. For asking a live model what it does now, see
 [live behaviour checks](live-behavior.md).
 
+## Start in one command
+
+`init-check` writes a policy, a suite, a first run and a GitHub Actions workflow,
+then runs the check so you see a verdict straight away.
+
+```bash
+npx agent-vcr init-check --require refund_order:verify_order --forbid delete_account
+```
+
+You name the rules. There is no placeholder policy on purpose: a starter file
+with made-up tool names would pass every run of your agent and look like
+protection. Three shapes cover most first policies, and they combine.
+
+| Starter | Flag | Rule it writes |
+|---|---|---|
+| Verify before acting | `--require <action>:<prerequisite>` | Wherever the action is called, the prerequisite must already have been |
+| No destructive tools | `--forbid <tool>,<tool>` | These tools are never called |
+| Call budget | `--max-calls <n>`, `--max-per-tool <n>` | Caps on total calls and on calls to any one tool |
+
+`--require` and `--forbid` take comma-separated lists; give each flag once. A
+tool name containing a comma or a colon cannot be written on the command line:
+scaffold without that rule and add it to `policy.json` by hand.
+
+Give it a real run with `--from`, either an Agent VCR trace file or an exported
+OpenTelemetry span file (`--trace-id` and `--names-only` apply as in `from-otel`):
+
+```bash
+npx agent-vcr init-check --require refund_order:verify_order --from spans.json
+```
+
+Without `--from`, the first scenario is an example run generated from your rules
+and labelled as an example. It exists so the scaffold works before your agent is
+instrumented; replace it with a real run.
+
+| File written | Purpose |
+|---|---|
+| `policy.json` | Your rules |
+| `agent-vcr.suite.json` | One scenario pointing at the first run |
+| `traces/first.run.json` or `traces/example.run.json` | The run that was judged |
+| `.github/workflows/agent-checks.yml` | Runs the check on every pull request |
+
+It refuses to run where a check is already set up. If `policy.json`,
+`agent-vcr.suite.json` or the run file already exists it writes nothing and exits
+2, because scaffolding around them would leave the rules you just named
+unenforced. An existing workflow file is left alone and listed.
+
+Use `--dir` to write somewhere other than the current directory. GitHub only
+runs workflows from `.github/workflows` at the repository root, and the
+workflow's suite path is relative to that root, so move or adjust the workflow
+if `--dir` is not the root.
+
+Rules that cannot work are refused before anything is written: a cycle of
+`--require` rules, a tool both required and forbidden, or a call budget too
+small for a minimal run.
+
+Two things it tells you that are easy to miss otherwise:
+
+- If the real first run already breaks a rule, it exits 1 and says which.
+- If a `--require` rule names a tool the run never calls, it warns. That is
+  usually a misspelt name: a misspelt action means the rule never applies, and a
+  misspelt prerequisite means it can never be satisfied.
+
 ## The suite file
 
 A suite lists the runs to judge. Paths are relative to the suite file.

@@ -9,7 +9,7 @@
 
 import type { ToolCallRecord } from './types.js'
 import type { BehaviorDivergence, BehaviorPath, BehaviorReport, BehaviorVerdict } from './behavior.js'
-import { describeBehavior } from './behavior.js'
+import { describeBehavior, rateInterval } from './behavior.js'
 import { stableStringify } from './normalize.js'
 
 /** Hidden marker so a workflow can find and update its own comment instead of posting a new one. */
@@ -174,6 +174,21 @@ export function formatBehaviorMarkdown(report: BehaviorReport, options?: Behavio
 
   lines.push('')
   lines.push(`<sub>${report.runs} live run${report.runs === 1 ? '' : 's'} · ${report.distinctTraces} distinct path${report.distinctTraces === 1 ? '' : 's'}</sub>`)
+  const finished = report.runs - report.counts.error
+  if (report.hasPolicy && finished > 0) {
+    const { low, high } = rateInterval(report.counts.regression, finished)
+    const pc = (x: number): string => (x > 0 && x < 0.01 ? 'under 1%' : x > 0.99 && x < 1 ? 'over 99%' : `${Math.round(x * 100)}%`)
+    const broke = report.counts.regression
+    const runsWord = `finished run${finished === 1 ? '' : 's'}`
+    lines.push('')
+    lines.push(
+      broke === 0
+        ? `<sub>No policy break in ${finished} ${runsWord}. That is consistent with a true break rate anywhere up to ${pc(high)} (95% bound, assuming independent runs); more runs narrow it.</sub>`
+        : broke === finished
+          ? `<sub>Policy broken in ${broke} of ${finished} ${runsWord}. The true break rate is plausibly at least ${pc(low)} (95% bound, assuming independent runs).</sub>`
+          : `<sub>Policy broken in ${broke} of ${finished} ${runsWord}. The true rate is plausibly between ${pc(low)} and ${pc(high)} (approximate 95% interval, assuming independent runs).</sub>`,
+    )
+  }
   return lines.join('\n')
 }
 
